@@ -7,8 +7,8 @@ import cl.fullstack3.msdataingestion.client.SalesClient;
 import cl.fullstack3.msdataingestion.dto.IngestionResultDTO;
 import cl.fullstack3.msdataingestion.model.IngestedData;
 import cl.fullstack3.msdataingestion.model.IngestionLog;
-import cl.fullstack3.msdataingestion.repository.IngestedDataRepository;
-import cl.fullstack3.msdataingestion.repository.IngestionLogRepository;
+import cl.fullstack3.msdataingestion.repository.IIngestedDataRepository;
+import cl.fullstack3.msdataingestion.repository.IIngestionLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -18,7 +18,6 @@ import reactor.core.publisher.Mono;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -29,8 +28,8 @@ public class IngestionService {
     private final InventoryClient inventoryClient;
     private final FinanceClient financeClient;
     private final CustomerClient customerClient;
-    private final IngestedDataRepository ingestedDataRepository;
-    private final IngestionLogRepository ingestionLogRepository;
+    private final IIngestedDataRepository ingestedDataRepository;
+    private final IIngestionLogRepository ingestionLogRepository;
 
     @Transactional
     public IngestionResultDTO runIngestion() {
@@ -40,13 +39,6 @@ public class IngestionService {
         List<IngestionResultDTO.SourceResult> sourceResults = new ArrayList<>();
         int totalRecords = 0;
         int totalErrors = 0;
-
-        Map<String, Mono<String>> sources = Map.of(
-                "ms-sales", salesClient.fetchSales(),
-                "ms-inventory", inventoryClient.fetchInventory(),
-                "ms-finance", financeClient.fetchFinance(),
-                "ms-customer", customerClient.fetchCustomers()
-        );
 
         // Ejecutar llamadas en paralelo con Mono.zip()
         var results = Mono.zip(
