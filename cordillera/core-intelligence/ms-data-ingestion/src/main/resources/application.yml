@@ -1,0 +1,26 @@
+server:
+  port: 8090
+
+spring:
+  application:
+    name: ms-data-ingestion
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:5432/db_ingestion
+    username: ${DB_USER:postgres}
+    password: ${DB_PASS:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+  flyway:
+    enabled: true
+  docker:
+    compose:
+      file: cordillera/core-intelligence/ms-data-ingestion/docker-compose.yml
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
