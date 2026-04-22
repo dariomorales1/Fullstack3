@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface IngestionLogRepository extends JpaRepository<IngestionLog, Long> {
+public interface IIngestionLogRepository extends JpaRepository<IngestionLog, Long> {
 
     List<IngestionLog> findAllByOrderByExecutionDateDesc();
 

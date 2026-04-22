@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface IngestedDataRepository extends JpaRepository<IngestedData, Long> {
+public interface IIngestedDataRepository extends JpaRepository<IngestedData, Long> {
 
     List<IngestedData> findBySourceServiceOrderByTimestampDesc(String sourceService);
 
