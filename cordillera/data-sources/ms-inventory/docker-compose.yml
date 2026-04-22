@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  postgres-db:
+    image: postgres:16
+    container_name: postgres-ms-inventory
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: db_inventory
+    ports:
+      - "5433:5432"
+    restart: unless-stopped
