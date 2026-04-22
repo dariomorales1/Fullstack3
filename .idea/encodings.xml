@@ -14,6 +14,7 @@
     <file url="file://$PROJECT_DIR$/cordillera/data-sources/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/cordillera/finance/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/cordillera/infraestructure/api-gateway/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/cordillera/infraestructure/aws/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/cordillera/infraestructure/bff/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/cordillera/infraestructure/eureka-server/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/cordillera/infraestructure/src/main/java" charset="UTF-8" />
