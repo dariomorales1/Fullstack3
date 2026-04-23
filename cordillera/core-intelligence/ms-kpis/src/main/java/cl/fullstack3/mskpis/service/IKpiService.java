@@ -1,5 +1,6 @@
 package cl.fullstack3.mskpis.service;
 
+import cl.fullstack3.mskpis.dto.CalculoDesdeIngestionRequestDTO;
 import cl.fullstack3.mskpis.dto.CalculoKpiRequestDTO;
 import cl.fullstack3.mskpis.dto.IndicadorRequestDTO;
 import cl.fullstack3.mskpis.dto.IndicadorResponseDTO;
@@ -16,6 +17,8 @@ public interface IKpiService {
     IndicadorResponseDTO create(IndicadorRequestDTO dto);
 
     ResultadoResponseDTO calcular(CalculoKpiRequestDTO request);
+
+    ResultadoResponseDTO calcularDesdeIngestion(CalculoDesdeIngestionRequestDTO request);
 
     ResultadoResponseDTO getUltimoResultado(Long indicadorId);
 

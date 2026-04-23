@@ -1,5 +1,6 @@
 package cl.fullstack3.mskpis.controller;
 
+import cl.fullstack3.mskpis.dto.CalculoDesdeIngestionRequestDTO;
 import cl.fullstack3.mskpis.dto.CalculoKpiRequestDTO;
 import cl.fullstack3.mskpis.dto.IndicadorRequestDTO;
 import cl.fullstack3.mskpis.dto.IndicadorResponseDTO;
@@ -37,6 +38,12 @@ public class KpiController {
     @PostMapping("/calcular")
     public ResponseEntity<ResultadoResponseDTO> calcular(@RequestBody CalculoKpiRequestDTO request) {
         return ResponseEntity.ok(kpiService.calcular(request));
+    }
+
+    @PostMapping("/calcular-desde-ingestion")
+    public ResponseEntity<ResultadoResponseDTO> calcularDesdeIngestion(
+            @RequestBody CalculoDesdeIngestionRequestDTO request) {
+        return ResponseEntity.ok(kpiService.calcularDesdeIngestion(request));
     }
 
     @GetMapping("/{id}/resultado")

@@ -19,5 +19,7 @@ public class ResultadoResponseDTO {
     private Long periodoId;
     private BigDecimal valorReal;
     private BigDecimal porcentajeCumplimiento;
+    private BigDecimal variacion;
+    private String tendencia;
     private String estado;
 }
