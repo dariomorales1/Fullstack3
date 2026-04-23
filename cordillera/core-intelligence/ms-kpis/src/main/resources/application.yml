@@ -5,7 +5,7 @@ spring:
   application:
     name: ms-kpis
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:5432/db_kpis
+    url: jdbc:postgresql://${DB_HOST:localhost}:5435/db_kpis
     username: ${DB_USER:postgres}
     password: ${DB_PASS:postgres}
   jpa:
