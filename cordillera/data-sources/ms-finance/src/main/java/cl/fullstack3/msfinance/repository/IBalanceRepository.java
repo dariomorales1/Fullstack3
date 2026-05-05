@@ -9,7 +9,7 @@ import java.util.Optional;
 @Repository
 public interface IBalanceRepository extends JpaRepository<Balance, Long> {
 
-    Optional<Balance> findByBranchAndPeriod(
+    Optional<Balance> findByBranchIdAndPeriod(
             Long branchId, String period
     );
 }
