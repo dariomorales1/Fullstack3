@@ -47,7 +47,7 @@ public class FinanceService {
         String quarter = "Q" + ((month - 1) / 3 + 1);
         String currentPeriod = year + "-" + quarter;
 
-        Optional<Balance> optionalBalance = balanceRepository.findByBranchAndPeriod(movement.getBranchId(), currentPeriod);
+        Optional<Balance> optionalBalance = balanceRepository.findByBranchIdAndPeriod(movement.getBranchId(), currentPeriod);
 
         Balance balance;
 
