@@ -19,6 +19,7 @@ COPY infraestructure/pom.xml infraestructure/pom.xml
 COPY infraestructure/eureka-server/pom.xml infraestructure/eureka-server/pom.xml
 COPY infraestructure/api-gateway/pom.xml infraestructure/api-gateway/pom.xml
 COPY infraestructure/bff/pom.xml infraestructure/bff/pom.xml
+COPY infraestructure/ms-auth/pom.xml infraestructure/ms-auth/pom.xml
 
 RUN ./mvnw dependency:go-offline -B -pl core-intelligence/ms-reporting -am -q
 

@@ -21,15 +21,15 @@ COPY infraestructure/api-gateway/pom.xml infraestructure/api-gateway/pom.xml
 COPY infraestructure/bff/pom.xml infraestructure/bff/pom.xml
 COPY infraestructure/ms-auth/pom.xml infraestructure/ms-auth/pom.xml
 
-RUN ./mvnw dependency:go-offline -B -pl infraestructure/api-gateway -am -q
+RUN ./mvnw dependency:go-offline -B -pl infraestructure/ms-auth -am -q
 
-COPY infraestructure/api-gateway/src/ infraestructure/api-gateway/src/
+COPY infraestructure/ms-auth/src/ infraestructure/ms-auth/src/
 
-RUN ./mvnw package -DskipTests -B -pl infraestructure/api-gateway -am -q
+RUN ./mvnw package -DskipTests -B -pl infraestructure/ms-auth -am -q
 
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-COPY --from=build /app/infraestructure/api-gateway/target/*.jar app.jar
-EXPOSE 8080
-ENV JAVA_OPTS="-Xmx128m -Xms64m"
+COPY --from=build /app/infraestructure/ms-auth/target/*.jar app.jar
+EXPOSE 8086
+ENV JAVA_OPTS="-Xmx160m -Xms64m"
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
