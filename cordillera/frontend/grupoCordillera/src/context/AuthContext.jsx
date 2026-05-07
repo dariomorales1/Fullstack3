@@ -10,20 +10,26 @@ export const AuthProvider = ({ children }) => {
     const login = (userData, jwtToken) => {
         setUser(userData);
         setToken(jwtToken);
+        window.sessionStorage.setItem('user', JSON.stringify(userData));
         window.sessionStorage.setItem('token', jwtToken);
     };
 
     const logout = () => {
         setUser(null);
         setToken(null);
+        window.sessionStorage.removeItem('user');
         window.sessionStorage.removeItem('token');
     };
 
     useEffect(() => {
         const initializeAuth = async () => {
             const savedToken = window.sessionStorage.getItem('token');
+            const savedUser = window.sessionStorage.getItem('user');
             if (savedToken) {
                 setToken(savedToken);
+            }
+            if (savedUser) {
+                setUser(JSON.parse(savedUser));
             }
             setLoading(false);
         };

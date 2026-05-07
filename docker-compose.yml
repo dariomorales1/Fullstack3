@@ -280,6 +280,9 @@ services:
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_DOCKER_COMPOSE_ENABLED=false
       - JWT_SECRET=${JWT_SECRET:-cordillera-secret-key-2026-grupo-fullstack3-muy-segura}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-onboarding@resend.dev}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
     depends_on:
       postgres:
         condition: service_healthy
