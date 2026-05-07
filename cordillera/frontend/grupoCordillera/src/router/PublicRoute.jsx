@@ -6,7 +6,6 @@ const PublicRoute = () => {
 
     if (loading) return null;
 
-    // Si ya está logueado, lo mandamos directo al Dashboard
     if (isAuthenticated) {
         return <Navigate to="/" replace />;
     }

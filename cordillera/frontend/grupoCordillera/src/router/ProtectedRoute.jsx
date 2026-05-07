@@ -4,7 +4,6 @@ import { useAuth } from '../context/AuthContext';
 const ProtectedRoute = () => {
     const { isAuthenticated, loading } = useAuth();
 
-    // Mientras el AuthContext verifica el token contra el BFF, mostramos un estado de carga
     if (loading) {
         return (
             <div className="flex items-center justify-center h-screen">
@@ -13,12 +12,10 @@ const ProtectedRoute = () => {
         );
     }
 
-    // Si no está autenticado, redirigimos al login
     if (!isAuthenticated) {
         return <Navigate to="/login" replace />;
     }
 
-    // Si todo está bien, renderiza la ruta hija (el contenido de la página)
     return <Outlet />;
 };
 

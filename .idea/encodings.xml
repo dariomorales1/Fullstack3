@@ -17,6 +17,7 @@
     <file url="file://$PROJECT_DIR$/cordillera/infraestructure/aws/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/cordillera/infraestructure/bff/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/cordillera/infraestructure/eureka-server/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/cordillera/infraestructure/ms-auth/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/cordillera/infraestructure/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/cordillera/infraestructure/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/cordillera/inventory/src/main/java" charset="UTF-8" />

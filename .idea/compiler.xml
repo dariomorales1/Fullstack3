@@ -29,11 +29,13 @@
         <module name="ms-finance.main" />
         <module name="ms-inventory.test" />
         <module name="eureka-server.test" />
+        <module name="ms-auth.test" />
         <module name="ms-kpis.test" />
         <module name="ms-kpis.main" />
         <module name="ms-reporting.test" />
         <module name="ms-sales.test" />
         <module name="bff.main" />
+        <module name="ms-auth.main" />
         <module name="api-gateway.main" />
       </profile>
     </annotationProcessing>
@@ -96,6 +98,9 @@
       <module name="infraestructure.test" options="-parameters" />
       <module name="inventory.main" options="-parameters" />
       <module name="inventory.test" options="-parameters" />
+      <module name="ms-auth" options="-parameters" />
+      <module name="ms-auth.main" options="-parameters" />
+      <module name="ms-auth.test" options="-parameters" />
       <module name="ms-customer" options="-parameters" />
       <module name="ms-customer.main" options="-parameters" />
       <module name="ms-customer.test" options="-parameters" />

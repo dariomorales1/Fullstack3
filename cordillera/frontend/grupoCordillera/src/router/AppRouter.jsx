@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import ProtectedRoute from './ProtectedRoute';
 import PublicRoute from './PublicRoute';
 import { PUBLIC_ROUTES, PRIVATE_ROUTES } from './routes';
-import AppLayout from '../components/layout/AppLayout';
+import {AppLayout} from '../components/layout/AppLayout';
 import NotFoundPage from '../pages/NotFoundPage';
 
 const AppRouter = () => {

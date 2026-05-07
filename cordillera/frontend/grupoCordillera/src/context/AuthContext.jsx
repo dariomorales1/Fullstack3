@@ -1,5 +1,4 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-// import { authApi } from '../api/authApi'; // Descomentar cuando la API esté lista
 
 const AuthContext = createContext();
 
@@ -23,22 +22,9 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const initializeAuth = async () => {
             const savedToken = window.sessionStorage.getItem('token');
-
             if (savedToken) {
                 setToken(savedToken);
-
-                /*
-                // Lógica de recuperación de sesión (auth/me) preparada:
-                try {
-                  const userData = await authApi.getUserProfile();
-                  setUser(userData);
-                } catch (error) {
-                  console.error("Sesión inválida o expirada");
-                  logout();
-                }
-                */
             }
-
             setLoading(false);
         };
 
@@ -46,6 +32,14 @@ export const AuthProvider = ({ children }) => {
             console.error("Error crítico en la inicialización de Auth:", err);
             setLoading(false);
         });
+
+        // Integración con axiosInstance para cierres de sesión forzados
+        const handleAuthError = () => logout();
+        window.addEventListener('auth-error', handleAuthError);
+
+        return () => {
+            window.removeEventListener('auth-error', handleAuthError);
+        };
     }, []);
 
     return (

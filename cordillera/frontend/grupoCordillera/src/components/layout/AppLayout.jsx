@@ -1,9 +1,9 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
-import TopHeader from './TopHeader';
+import {TopHeader} from './TopHeader';
 
-const AppLayout = () => {
+export const AppLayout = () => {
     return (
         <div className="flex h-screen bg-gray-100 overflow-hidden">
             <Sidebar />
@@ -20,5 +20,3 @@ const AppLayout = () => {
         </div>
     );
 };
-
-export default AppLayout;
