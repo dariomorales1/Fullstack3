@@ -1,6 +1,13 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../utils/constants';
 
+export const authAxios = axios.create({
+    baseURL: 'http://localhost:8086',
+    headers: {
+        'Content-Type': 'application/json',
+    },
+});
+
 const axiosInstance = axios.create({
     baseURL: API_BASE_URL,
     headers: {
@@ -8,26 +15,42 @@ const axiosInstance = axios.create({
     },
 });
 
+const attachToken = (config) => {
+    const token = window.sessionStorage.getItem('token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+};
+
+const handleRequestError = (error) => Promise.reject(error);
+
+const handleResponseError = (error) => {
+    if (error.response?.status === 401) {
+        // Si el backend dice que el token no sirve, limpiamos y mandamos al login
+        window.dispatchEvent(new Event('auth-error'));
+    }
+    return Promise.reject(error);
+};
+
 axiosInstance.interceptors.request.use(
-    (config) => {
-        const token = window.sessionStorage.getItem('token'); // Temporal hasta tener el Context
-        if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
-        }
-        return config;
-    },
-    (error) => Promise.reject(error)
+    attachToken,
+    handleRequestError
+);
+
+authAxios.interceptors.request.use(
+    attachToken,
+    handleRequestError
 );
 
 axiosInstance.interceptors.response.use(
     (response) => response,
-    (error) => {
-        if (error.response?.status === 401) {
-            // Si el BFF dice que el token no sirve, limpiamos y mandamos al login
-            window.dispatchEvent(new Event('auth-error'));
-        }
-        return Promise.reject(error);
-    }
+    handleResponseError
+);
+
+authAxios.interceptors.response.use(
+    (response) => response,
+    handleResponseError
 );
 
 export default axiosInstance;

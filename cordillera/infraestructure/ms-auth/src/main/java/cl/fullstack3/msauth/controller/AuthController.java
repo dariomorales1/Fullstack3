@@ -2,8 +2,10 @@ package cl.fullstack3.msauth.controller;
 
 import cl.fullstack3.msauth.dto.AuthResponseDTO;
 import cl.fullstack3.msauth.dto.ChangePasswordRequestDTO;
+import cl.fullstack3.msauth.dto.ForgotPasswordRequestDTO;
 import cl.fullstack3.msauth.dto.LoginRequestDTO;
 import cl.fullstack3.msauth.dto.RegisterRequestDTO;
+import cl.fullstack3.msauth.dto.ResetPasswordRequestDTO;
 import cl.fullstack3.msauth.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +39,20 @@ public class AuthController {
             @Valid @RequestBody ChangePasswordRequestDTO request) {
         authService.changePassword(email, request);
         return ResponseEntity.ok(Map.of("message", "Contrasena actualizada correctamente"));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequestDTO request) {
+        authService.forgotPassword(request);
+        return ResponseEntity.ok(Map.of(
+                "message", "Si el email existe en el sistema, recibiras un enlace en los proximos minutos."
+        ));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Map<String, String>> resetPassword(@Valid @RequestBody ResetPasswordRequestDTO request) {
+        authService.resetPassword(request);
+        return ResponseEntity.ok(Map.of("message", "Contrasena restablecida correctamente"));
     }
 
     @GetMapping("/validate")

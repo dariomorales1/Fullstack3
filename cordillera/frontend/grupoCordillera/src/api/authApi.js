@@ -1,15 +1,33 @@
-import axiosInstance from './axiosInstance';
+import { authAxios } from './axiosInstance.js';
 
 export const authApi = {
-    // Envía credenciales al BFF y recibe el JWT
     login: async (credentials) => {
-        const response = await axiosInstance.post('/api/auth/login', credentials);
-        return response.data; // { user: {...}, token: "ey..." }
+        const response = await authAxios.post('/api/auth/login', credentials);
+        return response.data;
     },
 
-    // Método preparado para recuperar el perfil mediante el token
-    getUserProfile: async () => {
-        const response = await axiosInstance.get('/api/auth/me');
+    register: async (userData) => {
+        const response = await authAxios.post('/api/auth/register', userData);
         return response.data;
-    }
+    },
+
+    forgotPassword: async (email) => {
+        const response = await authAxios.post('/api/auth/forgot-password', { email });
+        return response.data;
+    },
+
+    resetPassword: async (token, newPassword) => {
+        const response = await authAxios.post('/api/auth/reset-password', { token, newPassword });
+        return response.data;
+    },
+
+    changePassword: async (data) => {
+        const response = await authAxios.post('/api/auth/change-password', data);
+        return response.data;
+    },
+
+    validateToken: async () => {
+        const response = await authAxios.get('/api/auth/validate');
+        return response.data;
+    },
 };

@@ -39,7 +39,7 @@ export const TopHeader = ({ toggleSidebar }) => {
                         <User size={14} />
                     </div>
                     <span className="hidden sm:inline-block font-medium">
-                        {user?.nombre || 'Administrador'}
+                        {user?.email || 'Administrador'}
                     </span>
                 </div>
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate , Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { authApi } from '../../api/authApi.js';
 import { Mail, Lock, Eye, EyeOff, LogIn, HeadphonesIcon, Mountain } from 'lucide-react';
 
 export const LoginPage = () => {
@@ -24,16 +25,11 @@ export const LoginPage = () => {
         setIsSubmitting(true);
 
         try {
-            // Mock temporal. Reemplazar por authApi.
-            if (credentials.email === 'admin@grupocordillera.com' && credentials.password === 'admin') {
-                const mockToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock';
-                const mockUser = { id: 1, nombre: 'Admin Cordillera', email: credentials.email };
+            const data = await authApi.login(credentials);
+            const userObj = { email: data.email, role: data.role };
 
-                login(mockUser, mockToken);
-                navigate('/dashboard', { replace: true });
-            } else {
-                throw new Error('Credenciales inválidas');
-            }
+            login(userObj, data.token);
+            navigate('/dashboard', { replace: true });
         } catch (err) {
             setError(err.message || 'Error al conectar con el servidor');
         } finally {
@@ -140,7 +136,7 @@ export const LoginPage = () => {
                     {/* Enlaces de Soporte */}
                     <div className="px-8 pb-8 text-center space-y-5">
                         <div className="flex flex-col space-y-3">
-                            <Link to="/recuperar" className="text-sm text-slate-700 hover:text-slate-900 transition-colors">
+                            <Link to="/forgot-password" className="text-sm text-slate-700 hover:text-slate-900 transition-colors">
                                 ¿Olvidó su contraseña?
                             </Link>
                             <Link to="/register" className="text-sm font-medium text-slate-900 hover:underline transition-all">
