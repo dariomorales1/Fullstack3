@@ -26,7 +26,7 @@ export const PUBLIC_ROUTES = [
 export const PRIVATE_ROUTES = [
     {
         path: '/',
-        element: DashboardPage, // Necesaria para la redirección post-login
+        element: DashboardPage,
         name: 'Dashboard Ejecutivo',
         icon: 'DashboardIcon'
     },

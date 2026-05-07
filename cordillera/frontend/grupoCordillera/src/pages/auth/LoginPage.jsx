@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate , Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { Mail, Lock, Eye, EyeOff, LogIn, HeadphonesIcon, Mountain } from 'lucide-react';
 
@@ -139,9 +139,15 @@ export const LoginPage = () => {
 
                     {/* Enlaces de Soporte */}
                     <div className="px-8 pb-8 text-center space-y-5">
-                        <a href="/recuperar" className="text-sm text-slate-700 hover:text-slate-900 transition-colors">
-                            ¿Olvidó su contraseña?
-                        </a>
+                        <div className="flex flex-col space-y-3">
+                            <Link to="/recuperar" className="text-sm text-slate-700 hover:text-slate-900 transition-colors">
+                                ¿Olvidó su contraseña?
+                            </Link>
+                            <Link to="/register" className="text-sm font-medium text-slate-900 hover:underline transition-all">
+                                ¿No tienes una cuenta? Regístrate
+                            </Link>
+                        </div>
+
                         <div className="border-t border-slate-100 pt-5 space-y-2">
                             <p className="text-xs text-slate-500">¿Necesita ayuda con el portal?</p>
                             <a href="mailto:soporte@grupocordillera.com" className="text-sm text-slate-700 font-medium hover:text-slate-900 flex items-center justify-center gap-1.5 transition-colors">
