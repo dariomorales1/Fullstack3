@@ -1,28 +1,16 @@
 import React from 'react';
 import { Plus, CalendarDays, Building2, ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react';
 import { Dropdown } from '../components/ui/Dropdown';
-
-const summaryCards = [
-    { title: 'Total Revenue', value: '1.24M', meta: '+12.5%', tone: 'text-emerald-600' },
-    { title: 'Total Orders', value: '8492', meta: '+3.2%', tone: 'text-emerald-600' },
-    { title: 'Active Branches', value: '12', meta: 'Stable', tone: 'text-slate-500' },
-    { title: 'Avg Order Value', value: '146', meta: '-1.1%', tone: 'text-rose-600' }
-];
-
-const salesData = [
-    { id: 'SL-24890', date: 'Jan24', customer: 'Andina Corp', branch: 'North Region HQ', amount: '12450', status: 'COMPLETED' },
-    { id: 'SL-24891', date: 'Jan24', customer: 'Sierra Logistics', branch: 'Coastal Distribution', amount: '5200.50', status: 'PENDING' },
-    { id: 'SL-24892', date: 'Jan23', customer: 'Belmont Mining', branch: 'North Region HQ', amount: '42900', status: 'COMPLETED' },
-    { id: 'SL-24893', date: 'Jan23', customer: 'Pinnacle Ventures', branch: 'Central Corporate', amount: '1450.25', status: 'FLAGGED' },
-    { id: 'SL-24894', date: 'Jan22', customer: 'Nexus Tech', branch: 'North Region HQ', amount: '8120', status: 'COMPLETED' }
-];
-
-const statusOptions = ['All', 'Completed', 'Pending', 'Flagged'];
+import { useSales } from '../hooks/useSales.js';
+import { formatCompactNumber, formatCurrency, formatDate, titleCase } from '../utils/formatters.js';
 
 const statusClassMap = {
     COMPLETED: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+    COMPLETADA: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
     PENDING: 'bg-yellow-50 text-yellow-700 ring-yellow-200',
-    FLAGGED: 'bg-red-50 text-red-700 ring-red-200'
+    PENDIENTE: 'bg-yellow-50 text-yellow-700 ring-yellow-200',
+    FLAGGED: 'bg-red-50 text-red-700 ring-red-200',
+    ANULADA: 'bg-red-50 text-red-700 ring-red-200'
 };
 
 const FilterButton = ({ icon: Icon, label, onClick }) => (
@@ -33,12 +21,22 @@ const FilterButton = ({ icon: Icon, label, onClick }) => (
 );
 
 export const SalesPage = () => {
+    const { sales, loading, error } = useSales();
     const [statusFilter, setStatusFilter] = React.useState('All');
     const [openMenuId, setOpenMenuId] = React.useState(null);
 
+    const statusOptions = ['All', ...new Set(sales.map((row) => titleCase(row.status)).filter(Boolean))];
+
+    const summaryCards = [
+        { title: 'Ingresos Totales', value: formatCurrency(sales.reduce((acc, row) => acc + Number(row.amount ?? 0), 0)), meta: 'Ventas registradas', tone: 'text-emerald-600' },
+        { title: 'Total Ordenes', value: formatCompactNumber(sales.length), meta: 'Operaciones cargadas', tone: 'text-slate-500' },
+        { title: 'Sucursales Activas', value: String(new Set(sales.map((row) => row.branchId).filter(Boolean)).size), meta: 'Con ventas emitidas', tone: 'text-slate-500' },
+        { title: 'Ticket Promedio', value: formatCurrency(sales.length ? sales.reduce((acc, row) => acc + Number(row.amount ?? 0), 0) / sales.length : 0), meta: 'Promedio por venta', tone: 'text-emerald-600' }
+    ];
+
     const filteredSales = statusFilter === 'All'
-        ? salesData
-        : salesData.filter((row) => row.status === statusFilter.toUpperCase());
+        ? sales
+        : sales.filter((row) => titleCase(row.status) === statusFilter);
 
     const toggleMenu = (id) => {
         setOpenMenuId((current) => (current === id ? null : id));
@@ -55,7 +53,7 @@ export const SalesPage = () => {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                         <h1 className="text-3xl font-bold">Sales Records</h1>
-                        <p className="mt-1 text-sm text-slate-500">Static branch revenue and order audit overview.</p>
+                        <p className="mt-1 text-sm text-slate-500">Ventas reales consumidas desde el microservicio de ventas.</p>
                     </div>
                     <button
                         onClick={() => alert('Funcionalidad de nueva venta en desarrollo')}
@@ -86,6 +84,9 @@ export const SalesPage = () => {
 
                 <div className="grid gap-6 xl:grid-cols-[1.7fr_0.8fr]">
                     <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+                        {error ? (
+                            <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+                        ) : null}
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-slate-200">
                                 <thead className="bg-slate-50">
@@ -100,16 +101,26 @@ export const SalesPage = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200 bg-white">
-                                    {filteredSales.map((row) => (
+                                    {loading ? (
+                                        <tr>
+                                            <td colSpan="7" className="px-4 py-8 text-center text-sm text-slate-500">Cargando ventas...</td>
+                                        </tr>
+                                    ) : null}
+                                    {!loading && !filteredSales.length ? (
+                                        <tr>
+                                            <td colSpan="7" className="px-4 py-8 text-center text-sm text-slate-500">No hay ventas disponibles para este filtro.</td>
+                                        </tr>
+                                    ) : null}
+                                    {!loading && filteredSales.map((row) => (
                                         <tr key={row.id} className="text-sm text-slate-700">
-                                            <td className="px-4 py-4 font-semibold text-slate-900">{row.id}</td>
-                                            <td className="px-4 py-4">{row.date}</td>
-                                            <td className="px-4 py-4">{row.customer}</td>
-                                            <td className="px-4 py-4">{row.branch}</td>
-                                            <td className="px-4 py-4 font-medium">{row.amount}</td>
+                                            <td className="px-4 py-4 font-semibold text-slate-900">SL-{row.id}</td>
+                                            <td className="px-4 py-4">{formatDate(row.date)}</td>
+                                            <td className="px-4 py-4">Cliente #{row.customerId ?? 'N/D'}</td>
+                                            <td className="px-4 py-4">Sucursal #{row.branchId ?? 'N/D'}</td>
+                                            <td className="px-4 py-4 font-medium">{formatCurrency(row.amount)}</td>
                                             <td className="px-4 py-4">
-                                                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusClassMap[row.status]}`}>
-                                                    {row.status}
+                                                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusClassMap[row.status] || 'bg-slate-100 text-slate-600 ring-slate-200'}`}>
+                                                    {titleCase(row.status)}
                                                 </span>
                                             </td>
                                             <td className="relative px-4 py-4">
@@ -133,7 +144,7 @@ export const SalesPage = () => {
                             </table>
                         </div>
                         <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                            <span>Showing 1 to {filteredSales.length} of 8492</span>
+                            <span>Mostrando {filteredSales.length} de {sales.length} ventas</span>
                             <div className="flex items-center gap-2">
                                 <button className="rounded-lg border border-slate-200 p-2 text-slate-500"><ChevronLeft className="h-4 w-4" /></button>
                                 <button className="rounded-lg border border-slate-200 p-2 text-slate-500"><ChevronRight className="h-4 w-4" /></button>
@@ -145,12 +156,16 @@ export const SalesPage = () => {
                         <h2 className="text-lg font-semibold text-slate-900">Audit Summary</h2>
                         <div className="mt-5 space-y-4">
                             <div className="rounded-xl bg-white p-4 shadow-sm">
-                                <p className="text-sm text-slate-500">Compliance Score</p>
-                                <p className="mt-2 text-3xl font-bold text-emerald-600">98%</p>
+                                <p className="text-sm text-slate-500">Ventas completadas</p>
+                                <p className="mt-2 text-3xl font-bold text-emerald-600">
+                                    {sales.length ? `${Math.round((sales.filter((row) => ['COMPLETED', 'COMPLETADA'].includes(row.status)).length / sales.length) * 100)}%` : '0%'}
+                                </p>
                             </div>
                             <div className="rounded-xl bg-white p-4 shadow-sm">
-                                <p className="text-sm text-slate-500">Auto-sync</p>
-                                <p className="mt-2 text-lg font-semibold text-slate-900">Active</p>
+                                <p className="text-sm text-slate-500">Metodo principal</p>
+                                <p className="mt-2 text-lg font-semibold text-slate-900">
+                                    {titleCase(sales[0]?.paymentMethod) || 'Sin datos'}
+                                </p>
                             </div>
                         </div>
                     </aside>

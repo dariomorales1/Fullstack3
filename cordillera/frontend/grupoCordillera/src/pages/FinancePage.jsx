@@ -1,49 +1,52 @@
 import React from 'react';
 import { Plus, Download, Printer, MoreHorizontal } from 'lucide-react';
 import { Dropdown } from '../components/ui/Dropdown';
-
-const cards = [
-    { title: 'Total Income MTD', value: '4.28M', meta: '+12.5%', tone: 'text-emerald-600' },
-    { title: 'Total Expenses MTD', value: '1.92M', meta: '+4.2%', tone: 'text-rose-600' },
-    { title: 'Net Cashflow', value: '2.36M', meta: 'Stable', tone: 'text-slate-500' },
-    { title: 'Branch Efficiency', value: '94.2%', meta: 'Target 92%', tone: 'text-emerald-600' }
-];
-
-const rows = [
-    { id: 'FIN-82910', type: 'Income', amount: '45200', date: 'Oct24', branch: 'Cordillera North-West', status: 'Verified' },
-    { id: 'FIN-82911', type: 'Expense', amount: '12840.50', date: 'Oct23', branch: 'Logistics Central Hub', status: 'Pending' },
-    { id: 'FIN-82912', type: 'Income', amount: '112000', date: 'Oct23', branch: 'Main Office Corporate', status: 'Verified' },
-    { id: 'FIN-82913', type: 'Expense', amount: '3400', date: 'Oct22', branch: 'Cordillera South-East', status: 'Verified' },
-    { id: 'FIN-82914', type: 'Income', amount: '8900', date: 'Oct22', branch: 'Cordillera South-East', status: 'Verified' }
-];
-
-const periodOptions = ['Last 30 Days', 'Last 90 Days', 'This Year'];
-const typeOptions = ['All Types', 'Income', 'Expense'];
-const branchOptions = ['All Branches', 'Cordillera North-West', 'Logistics Central Hub', 'Main Office Corporate', 'Cordillera South-East'];
+import { useFinance } from '../hooks/useFinance.js';
+import { formatCompactNumber, formatCurrency, formatDateTime, titleCase } from '../utils/formatters.js';
 
 const typeClassMap = {
-    Income: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-    Expense: 'bg-red-50 text-red-700 ring-red-200'
+    INCOME: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+    EXPENSE: 'bg-red-50 text-red-700 ring-red-200'
 };
 
 export const FinancePage = () => {
+    const { movements, balances, loading, error } = useFinance();
     const [openMenuId, setOpenMenuId] = React.useState(null);
-    const [periodFilter, setPeriodFilter] = React.useState('Last 30 Days');
+    const [periodFilter, setPeriodFilter] = React.useState('Todos los periodos');
     const [typeFilter, setTypeFilter] = React.useState('All Types');
     const [branchFilter, setBranchFilter] = React.useState('All Branches');
 
-    const filteredRows = rows.filter((row) => {
-        const matchesType = typeFilter === 'All Types' || row.type === typeFilter;
-        const matchesBranch = branchFilter === 'All Branches' || row.branch === branchFilter;
-        return matchesType && matchesBranch;
+    const periodOptions = ['Todos los periodos', ...new Set(balances.map((balance) => balance.period).filter(Boolean))];
+    const typeOptions = ['All Types', ...new Set(movements.map((movement) => titleCase(movement.type)).filter(Boolean))];
+    const branchOptions = ['All Branches', ...new Set(movements.map((movement) => `Sucursal ${movement.branchId}`).filter(Boolean))];
+
+    const filteredRows = movements.filter((row) => {
+        const matchesType = typeFilter === 'All Types' || titleCase(row.type) === typeFilter;
+        const matchesBranch = branchFilter === 'All Branches' || `Sucursal ${row.branchId}` === branchFilter;
+        const matchesPeriod = periodFilter === 'Todos los periodos' || balances.some((balance) => balance.period === periodFilter && balance.branchId === row.branchId);
+        return matchesType && matchesBranch && matchesPeriod;
     });
+
+    const totalIncome = movements
+        .filter((movement) => movement.type === 'INCOME')
+        .reduce((acc, movement) => acc + Number(movement.amount ?? 0), 0);
+    const totalExpenses = movements
+        .filter((movement) => movement.type === 'EXPENSE')
+        .reduce((acc, movement) => acc + Number(movement.amount ?? 0), 0);
+
+    const cards = [
+        { title: 'Ingresos Totales', value: formatCurrency(totalIncome), meta: 'Movimientos tipo ingreso', tone: 'text-emerald-600' },
+        { title: 'Gastos Totales', value: formatCurrency(totalExpenses), meta: 'Movimientos tipo egreso', tone: 'text-rose-600' },
+        { title: 'Flujo Neto', value: formatCurrency(totalIncome - totalExpenses), meta: 'Ingreso menos gasto', tone: 'text-slate-500' },
+        { title: 'Balances Disponibles', value: formatCompactNumber(balances.length), meta: 'Periodos consolidados', tone: 'text-emerald-600' }
+    ];
 
     const toggleMenu = (id) => {
         setOpenMenuId((current) => (current === id ? null : id));
     };
 
     const handleMenuAction = (action, row) => {
-        alert(`${action}: ${row.id} - ${row.branch}`);
+        alert(`${action}: ${row.id} - Sucursal ${row.branchId}`);
         setOpenMenuId(null);
     };
 
@@ -53,7 +56,7 @@ export const FinancePage = () => {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                         <h1 className="text-3xl font-bold">Financial Oversight</h1>
-                        <p className="mt-1 text-sm text-slate-500">Static month-to-date movement monitoring for branches.</p>
+                        <p className="mt-1 text-sm text-slate-500">Movimientos y balances reales consumidos desde finanzas.</p>
                     </div>
                     <button
                         onClick={() => alert('Funcionalidad de nuevo movimiento en desarrollo')}
@@ -87,6 +90,9 @@ export const FinancePage = () => {
                 </div>
 
                 <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+                    {error ? (
+                        <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+                    ) : null}
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-slate-200">
                             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -96,23 +102,33 @@ export const FinancePage = () => {
                                     <th className="px-4 py-4">Amount</th>
                                     <th className="px-4 py-4">Date</th>
                                     <th className="px-4 py-4">Branch</th>
-                                    <th className="px-4 py-4">Status</th>
+                                    <th className="px-4 py-4">Category</th>
                                     <th className="px-4 py-4">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200 bg-white text-sm text-slate-700">
-                                {filteredRows.map((row) => (
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan="7" className="px-4 py-8 text-center text-sm text-slate-500">Cargando movimientos...</td>
+                                    </tr>
+                                ) : null}
+                                {!loading && !filteredRows.length ? (
+                                    <tr>
+                                        <td colSpan="7" className="px-4 py-8 text-center text-sm text-slate-500">No hay movimientos para este filtro.</td>
+                                    </tr>
+                                ) : null}
+                                {!loading && filteredRows.map((row) => (
                                     <tr key={row.id}>
-                                        <td className="px-4 py-4 font-semibold text-slate-900">{row.id}</td>
+                                        <td className="px-4 py-4 font-semibold text-slate-900">FIN-{row.id}</td>
                                         <td className="px-4 py-4">
-                                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${typeClassMap[row.type]}`}>
-                                                {row.type}
+                                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${typeClassMap[row.type] || 'bg-slate-100 text-slate-600 ring-slate-200'}`}>
+                                                {titleCase(row.type)}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-4 font-medium">{row.amount}</td>
-                                        <td className="px-4 py-4">{row.date}</td>
-                                        <td className="px-4 py-4">{row.branch}</td>
-                                        <td className="px-4 py-4">{row.status}</td>
+                                        <td className="px-4 py-4 font-medium">{formatCurrency(row.amount)}</td>
+                                        <td className="px-4 py-4">{formatDateTime(row.date)}</td>
+                                        <td className="px-4 py-4">Sucursal {row.branchId}</td>
+                                        <td className="px-4 py-4">{titleCase(row.category)}</td>
                                         <td className="relative px-4 py-4">
                                             <button
                                                 onClick={() => toggleMenu(row.id)}
@@ -134,7 +150,7 @@ export const FinancePage = () => {
                         </table>
                     </div>
                     <div className="border-t border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
-                        Showing 1 to {filteredRows.length} of 128 results.
+                        Mostrando {filteredRows.length} de {movements.length} movimientos.
                     </div>
                 </div>
             </div>

@@ -1,41 +1,51 @@
 import React from 'react';
 import { TrendingUp, SlidersHorizontal, Download } from 'lucide-react';
 import { Dropdown } from '../components/ui/Dropdown';
-
-const rows = [
-    { code: 'FIN-001', name: 'EBITDA Consolidado', type: 'Financiero', actual: '4.2M', goal: '4.0M', compliance: '105%', status: 'CUMPLIDO' },
-    { code: 'OPS-204', name: 'Disponibilidad de Red', type: 'Operativo', actual: '98.2%', goal: '99.5%', compliance: '98.7%', status: 'EN RIESGO' },
-    { code: 'HHR-012', name: 'Tasa de Rotacion', type: 'RRHH', actual: '14.5%', goal: '8.0%', compliance: '55.2%', status: 'CRITICO' },
-    { code: 'FIN-002', name: 'Flujo de Caja Libre', type: 'Financiero', actual: '1.8M', goal: '1.5M', compliance: '120%', status: 'CUMPLIDO' },
-    { code: 'SUS-501', name: 'Emisiones de CO2', type: 'Sostenibilidad', actual: '450tn', goal: '480tn', compliance: '106.2%', status: 'CUMPLIDO' }
-];
-
-const kpiTypes = ['Todos', 'Financiero', 'Operativo', 'RRHH', 'Sostenibilidad'];
-const periodOptions = ['Q1-2023', 'Q2-2023', 'Q3-2023', 'Q4-2023'];
+import { useKpis } from '../hooks/useKpis.js';
+import { formatCompactNumber, titleCase } from '../utils/formatters.js';
 
 const statusClassMap = {
     CUMPLIDO: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-    'EN RIESGO': 'bg-yellow-50 text-yellow-700 ring-yellow-200',
+    EN_RIESGO: 'bg-yellow-50 text-yellow-700 ring-yellow-200',
     CRITICO: 'bg-red-50 text-red-700 ring-red-200'
 };
 
 export const KpisPage = () => {
+    const periodMap = {
+        'Periodo 1': 1,
+        'Periodo 2': 2,
+        'Periodo 3': 3,
+        'Periodo 4': 4,
+    };
     const [calculating, setCalculating] = React.useState(false);
     const [calculated, setCalculated] = React.useState(false);
     const [kpiTypeFilter, setKpiTypeFilter] = React.useState('Todos');
-    const [period, setPeriod] = React.useState('Q3-2023');
+    const [period, setPeriod] = React.useState('Periodo 1');
+    const { kpis, loading, error, refetch } = useKpis(periodMap[period]);
 
-    const handleCalculate = () => {
+    const handleRefresh = async () => {
         setCalculating(true);
-        setTimeout(() => {
+        try {
+            await refetch();
             setCalculating(false);
             setCalculated(true);
-        }, 1500);
+        } catch {
+            setCalculating(false);
+        }
     };
 
+    const kpiTypes = ['Todos', ...new Set(kpis.map((row) => titleCase(row.tipo)).filter(Boolean))];
+    const periodOptions = Object.keys(periodMap);
+
     const filteredRows = kpiTypeFilter === 'Todos'
-        ? rows
-        : rows.filter((row) => row.type === kpiTypeFilter);
+        ? kpis
+        : kpis.filter((row) => titleCase(row.tipo) === kpiTypeFilter);
+
+    const completedCount = kpis.filter((row) => row.resultado?.estado === 'CUMPLIDO').length;
+    const riskCount = kpis.filter((row) => row.resultado?.estado === 'EN_RIESGO').length;
+    const avgCompliance = kpis.length
+        ? Math.round(kpis.reduce((acc, row) => acc + Number(row.resultado?.porcentajeCumplimiento ?? 0), 0) / kpis.length)
+        : 0;
 
     return (
         <div className="min-h-full bg-white p-6 text-slate-900">
@@ -50,14 +60,14 @@ export const KpisPage = () => {
                                 </span>
                             ) : null}
                         </div>
-                        <p className="mt-1 text-sm text-slate-500">Vista consolidada de desempeno por area con datos estaticos.</p>
+                        <p className="mt-1 text-sm text-slate-500">Vista consolidada de indicadores consumida desde ms-kpis.</p>
                     </div>
                     <button
-                        onClick={handleCalculate}
+                        onClick={handleRefresh}
                         className="inline-flex items-center self-start rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold text-white shadow-sm"
                     >
                         <TrendingUp className={`mr-2 h-4 w-4 ${calculating ? 'animate-spin' : ''}`} />
-                        Calcular KPIs
+                        Actualizar KPIs
                     </button>
                 </div>
 
@@ -82,6 +92,9 @@ export const KpisPage = () => {
                     <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
                         <h2 className="text-lg font-semibold text-slate-900">Resultados Consolidados</h2>
                     </div>
+                    {error ? (
+                        <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+                    ) : null}
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-slate-200">
                             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -96,17 +109,29 @@ export const KpisPage = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-200 bg-white text-sm text-slate-700">
-                                {filteredRows.map((row) => (
-                                    <tr key={row.code}>
-                                        <td className="px-4 py-4 font-semibold text-slate-900">{row.code}</td>
-                                        <td className="px-4 py-4">{row.name}</td>
-                                        <td className="px-4 py-4">{row.type}</td>
-                                        <td className="px-4 py-4">{row.actual}</td>
-                                        <td className="px-4 py-4">{row.goal}</td>
-                                        <td className="px-4 py-4 font-medium">{row.compliance}</td>
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan="7" className="px-4 py-8 text-center text-sm text-slate-500">Cargando KPIs...</td>
+                                    </tr>
+                                ) : null}
+                                {!loading && !filteredRows.length ? (
+                                    <tr>
+                                        <td colSpan="7" className="px-4 py-8 text-center text-sm text-slate-500">No hay KPIs para el periodo seleccionado.</td>
+                                    </tr>
+                                ) : null}
+                                {!loading && filteredRows.map((row) => (
+                                    <tr key={row.id}>
+                                        <td className="px-4 py-4 font-semibold text-slate-900">{row.codigo}</td>
+                                        <td className="px-4 py-4">{row.nombre}</td>
+                                        <td className="px-4 py-4">{titleCase(row.tipo)}</td>
+                                        <td className="px-4 py-4">{row.resultado?.valorReal ?? 'Sin resultado'}</td>
+                                        <td className="px-4 py-4">{row.unidad || 'N/D'}</td>
+                                        <td className="px-4 py-4 font-medium">
+                                            {row.resultado?.porcentajeCumplimiento != null ? `${Number(row.resultado.porcentajeCumplimiento).toFixed(1)}%` : 'N/D'}
+                                        </td>
                                         <td className="px-4 py-4">
-                                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusClassMap[row.status]}`}>
-                                                {row.status}
+                                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusClassMap[row.resultado?.estado] || 'bg-slate-100 text-slate-600 ring-slate-200'}`}>
+                                                {row.resultado?.estado ? titleCase(row.resultado.estado) : 'Sin resultado'}
                                             </span>
                                         </td>
                                     </tr>
@@ -119,16 +144,16 @@ export const KpisPage = () => {
                 <div className="grid gap-4 lg:grid-cols-3">
                     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Meta Trimestral</p>
-                        <p className="mt-3 text-3xl font-bold text-slate-900">82.4%</p>
-                        <p className="mt-2 text-sm font-semibold text-emerald-600">+4.2% vs Q2</p>
+                        <p className="mt-3 text-3xl font-bold text-slate-900">{avgCompliance}%</p>
+                        <p className="mt-2 text-sm font-semibold text-emerald-600">Promedio de cumplimiento</p>
                         <div className="mt-4 h-3 rounded-full bg-slate-200">
-                            <div className="h-3 rounded-full bg-blue-600" style={{ width: '82.4%' }} />
+                            <div className="h-3 rounded-full bg-blue-600" style={{ width: `${Math.min(avgCompliance, 100)}%` }} />
                         </div>
                     </div>
                     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">KPIs en Alerta</p>
-                        <p className="mt-3 text-3xl font-bold text-red-600">03</p>
-                        <p className="mt-2 text-sm font-semibold text-slate-700">Indicadores Criticos</p>
+                        <p className="mt-3 text-3xl font-bold text-red-600">{formatCompactNumber(riskCount)}</p>
+                        <p className="mt-2 text-sm font-semibold text-slate-700">Indicadores en riesgo</p>
                         <div className="mt-4 space-y-2">
                             <div className="h-2 rounded-full bg-red-200">
                                 <div className="h-2 w-4/5 rounded-full bg-red-500" />
@@ -143,8 +168,8 @@ export const KpisPage = () => {
                     </div>
                     <div className="rounded-2xl bg-brand-dark p-5 text-white shadow-sm">
                         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-200">Eficiencia Global</p>
-                        <p className="mt-3 text-4xl font-bold">94.1</p>
-                        <p className="mt-2 text-sm text-slate-300">Puntaje Holding</p>
+                        <p className="mt-3 text-4xl font-bold">{formatCompactNumber(completedCount)}</p>
+                        <p className="mt-2 text-sm text-slate-300">KPIs cumplidos</p>
                     </div>
                 </div>
             </div>

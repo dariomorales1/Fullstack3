@@ -44,4 +44,43 @@ public class KpisClient {
                     return Mono.just(Collections.emptyList());
                 });
     }
+
+    public Mono<Object> findById(Long id) {
+        return webClientBuilder.build()
+                .get()
+                .uri("http://ms-kpis/api/kpis/{id}", id)
+                .retrieve()
+                .bodyToMono(Object.class)
+                .timeout(Duration.ofSeconds(5))
+                .onErrorResume(ex -> {
+                    log.warn("ms-kpis no disponible (id={}): {}", id, ex.getMessage());
+                    return Mono.just(Collections.emptyMap());
+                });
+    }
+
+    public Mono<Object> getLatestResult(Long id) {
+        return webClientBuilder.build()
+                .get()
+                .uri("http://ms-kpis/api/kpis/{id}/resultado", id)
+                .retrieve()
+                .bodyToMono(Object.class)
+                .timeout(Duration.ofSeconds(5))
+                .onErrorResume(ex -> {
+                    log.warn("resultado KPI no disponible (id={}): {}", id, ex.getMessage());
+                    return Mono.just(Collections.emptyMap());
+                });
+    }
+
+    public Mono<Object> findByPeriod(Long periodoId) {
+        return webClientBuilder.build()
+                .get()
+                .uri("http://ms-kpis/api/kpis/periodo/{periodoId}", periodoId)
+                .retrieve()
+                .bodyToMono(Object.class)
+                .timeout(Duration.ofSeconds(5))
+                .onErrorResume(ex -> {
+                    log.warn("resultados KPI no disponibles (periodo={}): {}", periodoId, ex.getMessage());
+                    return Mono.just(Collections.emptyList());
+                });
+    }
 }
