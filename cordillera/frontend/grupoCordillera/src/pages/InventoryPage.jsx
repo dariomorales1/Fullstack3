@@ -1,24 +1,8 @@
 import React from 'react';
 import { Download, Plus, AlertTriangle, Eye } from 'lucide-react';
 import { Dropdown } from '../components/ui/Dropdown';
-
-const cards = [
-    { title: 'Total SKUs', value: '12482', meta: '+2.4%', tone: 'text-emerald-600' },
-    { title: 'Stock Valuation', value: '4.2M', meta: 'Stable', tone: 'text-slate-500' },
-    { title: 'Critical Alerts', value: '14', meta: 'Immediate review', tone: 'text-red-600', icon: AlertTriangle },
-    { title: 'Fulfillment Rate', value: '98.2%', meta: 'Operational target', tone: 'text-emerald-600' }
-];
-
-const tabs = ['All Products', 'Warehouse A', 'Regional Hubs'];
-const statusOptions = ['All', 'IN STOCK', 'LOW STOCK', 'CRITICAL', 'OUT OF STOCK'];
-
-const products = [
-    { sku: 'CRD-0042-X', name: 'Enterprise Rack Unit V4', category: 'Core Hardware', stock: '1240', status: 'IN STOCK', audit: '2h ago' },
-    { sku: 'CRD-9912-L', name: 'Quantum Processor Module', category: 'Electronics', stock: '12', status: 'CRITICAL', audit: '12h ago' },
-    { sku: 'CRD-0881-Z', name: 'Shielded Fiber Optic', category: 'Connectivity', stock: '850', status: 'LOW STOCK', audit: '1d ago' },
-    { sku: 'CRD-5501-A', name: 'Solar Array Controller', category: 'Power Systems', stock: '145', status: 'IN STOCK', audit: '4d ago' },
-    { sku: 'CRD-1120-K', name: 'Satellite Uplink Kit', category: 'Connectivity', stock: '0', status: 'OUT OF STOCK', audit: 'Just now' }
-];
+import { useInventory } from '../hooks/useInventory.js';
+import { formatCompactNumber, formatCurrency, formatDateTime, titleCase } from '../utils/formatters.js';
 
 const statusClassMap = {
     'IN STOCK': 'bg-emerald-50 text-emerald-700 ring-emerald-200',
@@ -27,33 +11,79 @@ const statusClassMap = {
     'OUT OF STOCK': 'bg-slate-100 text-slate-600 ring-slate-200'
 };
 
-const utilization = [
-    { name: 'London Central', value: 88, color: 'bg-blue-600' },
-    { name: 'New York Hub', value: 42, color: 'bg-emerald-500' },
-    { name: 'Singapore Terminal', value: 95, color: 'bg-amber-500' }
-];
-
 export const InventoryPage = () => {
-    const [activeTab, setActiveTab] = React.useState('All Products');
+    const { products, loading, error } = useInventory();
+    const [activeTab, setActiveTab] = React.useState('Todos');
     const [statusFilter, setStatusFilter] = React.useState('All');
 
-    const filteredProducts = products.filter((product) => {
+    const normalizedProducts = products.map((product) => {
+        const stocks = Array.isArray(product.stocks) ? product.stocks : [];
+        const totalStock = stocks.reduce((acc, stock) => acc + Number(stock.quantity ?? 0), 0);
+        const minimumStock = stocks.reduce((acc, stock) => acc + Number(stock.minimumStock ?? 0), 0);
+        const lastUpdated = stocks
+            .map((stock) => stock.lastUpdated)
+            .filter(Boolean)
+            .sort()
+            .at(-1);
+
+        let status = 'IN STOCK';
+        if (totalStock <= 0) {
+            status = 'OUT OF STOCK';
+        } else if (minimumStock > 0 && totalStock <= minimumStock) {
+            status = 'CRITICAL';
+        } else if (minimumStock > 0 && totalStock <= minimumStock * 2) {
+            status = 'LOW STOCK';
+        }
+
+        return {
+            ...product,
+            totalStock,
+            minimumStock,
+            status,
+            lastUpdated,
+        };
+    });
+
+    const tabs = ['Todos', ...new Set(normalizedProducts.map((product) => titleCase(product.category)).filter(Boolean))];
+    const statusOptions = ['All', ...new Set(normalizedProducts.map((product) => product.status))];
+
+    const filteredProducts = normalizedProducts.filter((product) => {
         const matchesStatus = statusFilter === 'All' || product.status === statusFilter;
 
         if (!matchesStatus) {
             return false;
         }
 
-        if (activeTab === 'All Products') {
+        if (activeTab === 'Todos') {
             return true;
         }
 
-        if (activeTab === 'Warehouse A') {
-            return ['IN STOCK', 'CRITICAL'].includes(product.status);
-        }
-
-        return product.category === 'Connectivity';
+        return titleCase(product.category) === activeTab;
     });
+
+    const cards = [
+        { title: 'Total SKUs', value: formatCompactNumber(normalizedProducts.length), meta: 'Catalogo disponible', tone: 'text-slate-500' },
+        { title: 'Valorizacion', value: formatCurrency(normalizedProducts.reduce((acc, product) => acc + (Number(product.price ?? 0) * product.totalStock), 0)), meta: 'Precio x stock', tone: 'text-emerald-600' },
+        { title: 'Alertas Criticas', value: String(normalizedProducts.filter((product) => ['CRITICAL', 'OUT OF STOCK'].includes(product.status)).length), meta: 'Requieren revision', tone: 'text-red-600', icon: AlertTriangle },
+        { title: 'Productos Activos', value: String(normalizedProducts.filter((product) => product.active).length), meta: 'Marcados como vigentes', tone: 'text-emerald-600' }
+    ];
+
+    const branchTotals = {};
+    normalizedProducts.forEach((product) => {
+        (product.stocks || []).forEach((stock) => {
+            const key = `Sucursal ${stock.branchId}`;
+            branchTotals[key] = (branchTotals[key] || 0) + Number(stock.quantity ?? 0);
+        });
+    });
+
+    const maxBranchStock = Math.max(...Object.values(branchTotals), 0);
+    const utilization = Object.entries(branchTotals)
+        .slice(0, 4)
+        .map(([name, value], index) => ({
+            name,
+            value: maxBranchStock ? Math.round((value / maxBranchStock) * 100) : 0,
+            color: ['bg-blue-600', 'bg-emerald-500', 'bg-amber-500', 'bg-fuchsia-500'][index] || 'bg-slate-500'
+        }));
 
     return (
         <div className="min-h-full bg-white p-6 text-slate-900">
@@ -61,7 +91,7 @@ export const InventoryPage = () => {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                         <h1 className="text-3xl font-bold">Inventory Management</h1>
-                        <p className="mt-1 text-sm text-slate-500">Static product directory and warehouse utilization view.</p>
+                        <p className="mt-1 text-sm text-slate-500">Inventario real consumido desde el microservicio de inventario.</p>
                     </div>
                     <div className="flex gap-3">
                         <button className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm">
@@ -123,6 +153,9 @@ export const InventoryPage = () => {
                         <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
                             <h2 className="text-lg font-semibold text-slate-900">Product Directory</h2>
                         </div>
+                        {error ? (
+                            <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+                        ) : null}
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-slate-200">
                                 <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -137,18 +170,28 @@ export const InventoryPage = () => {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200 bg-white text-sm text-slate-700">
-                                    {filteredProducts.map((product) => (
+                                    {loading ? (
+                                        <tr>
+                                            <td colSpan="7" className="px-4 py-8 text-center text-sm text-slate-500">Cargando inventario...</td>
+                                        </tr>
+                                    ) : null}
+                                    {!loading && !filteredProducts.length ? (
+                                        <tr>
+                                            <td colSpan="7" className="px-4 py-8 text-center text-sm text-slate-500">No hay productos para este filtro.</td>
+                                        </tr>
+                                    ) : null}
+                                    {!loading && filteredProducts.map((product) => (
                                         <tr key={product.sku}>
                                             <td className="px-4 py-4 font-semibold text-slate-900">{product.sku}</td>
                                             <td className="px-4 py-4">{product.name}</td>
-                                            <td className="px-4 py-4">{product.category}</td>
-                                            <td className="px-4 py-4">{product.stock}</td>
+                                            <td className="px-4 py-4">{titleCase(product.category)}</td>
+                                            <td className="px-4 py-4">{formatCompactNumber(product.totalStock)}</td>
                                             <td className="px-4 py-4">
                                                 <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusClassMap[product.status]}`}>
                                                     {product.status}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-4">{product.audit}</td>
+                                            <td className="px-4 py-4">{formatDateTime(product.lastUpdated)}</td>
                                             <td className="px-4 py-4">
                                                 <button
                                                     onClick={() => alert(`Ver producto: ${product.sku} - ${product.name}`)}
@@ -167,6 +210,9 @@ export const InventoryPage = () => {
                     <aside className="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
                         <h2 className="text-lg font-semibold text-slate-900">Warehouse Utilization</h2>
                         <div className="mt-5 space-y-5">
+                            {!utilization.length ? (
+                                <p className="text-sm text-slate-500">Sin datos de sucursales para mostrar.</p>
+                            ) : null}
                             {utilization.map((item) => (
                                 <div key={item.name}>
                                     <div className="mb-2 flex items-center justify-between text-sm">

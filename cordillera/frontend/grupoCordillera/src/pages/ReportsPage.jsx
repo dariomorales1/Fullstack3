@@ -1,39 +1,42 @@
 import React from 'react';
 import { Plus, Search, SlidersHorizontal, CalendarDays, Eye, Download, RefreshCw, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useReports } from '../hooks/useReports.js';
+import { formatCompactNumber, formatDateTime, safeJsonParse, titleCase } from '../utils/formatters.js';
 
-const cards = [
-    { title: 'Total Reportes', value: '1284', meta: '+12%', tone: 'text-emerald-600' },
-    { title: 'Completados', value: '1240', meta: '96.5%', tone: 'text-emerald-600' },
-    { title: 'En Proceso', value: '38', meta: 'Seguimiento activo', tone: 'text-blue-600' },
-    { title: 'Fallidos', value: '6', meta: 'Requieren revision', tone: 'text-red-600' }
-];
-
-const rows = [
-    { title: 'Estado Financiero Q3 2023', type: 'Financiero', date: 'Oct15', status: 'COMPLETADO', statusClass: 'bg-emerald-50 text-emerald-700 ring-emerald-200', actions: 'download' },
-    { title: 'Inventario Consolidado Norte', type: 'Logistica', date: 'Oct22', status: 'EN PROCESO', statusClass: 'bg-blue-50 text-blue-700 ring-blue-200', actions: 'disabled' },
-    { title: 'Auditoria Fiscal Anual 2022', type: 'Auditoria', date: 'Oct20', status: 'FALLIDO', statusClass: 'bg-red-50 text-red-700 ring-red-200', actions: 'refresh' },
-    { title: 'Desempeno RH Trimestral', type: 'RRHH', date: 'Oct19', status: 'COMPLETADO', statusClass: 'bg-emerald-50 text-emerald-700 ring-emerald-200', actions: 'download' }
-];
-
-const chartData = [
-    { day: 'LUN', total: 12 },
-    { day: 'MAR', total: 19 },
-    { day: 'MIE', total: 8 },
-    { day: 'JUE', total: 25 },
-    { day: 'VIE', total: 31 },
-    { day: 'SAB', total: 14 },
-    { day: 'DOM', total: 7 }
-];
+const statusClassMap = {
+    GENERADO: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+    EN_PROCESO: 'bg-blue-50 text-blue-700 ring-blue-200',
+    ERROR: 'bg-red-50 text-red-700 ring-red-200'
+};
 
 export const ReportsPage = () => {
+    const { reports, loading, error, refetch, generateReport } = useReports();
     const [searchQuery, setSearchQuery] = React.useState('');
     const [showModal, setShowModal] = React.useState(false);
-    const [reportType, setReportType] = React.useState('Financiero');
+    const [reportType, setReportType] = React.useState('VENTAS_POR_SUCURSAL');
 
-    const filteredRows = rows.filter((row) =>
-        row.title.toLowerCase().includes(searchQuery.toLowerCase())
+    const cards = [
+        { title: 'Total Reportes', value: formatCompactNumber(reports.length), meta: 'Historial disponible', tone: 'text-emerald-600' },
+        { title: 'Completados', value: formatCompactNumber(reports.filter((row) => row.estado === 'GENERADO').length), meta: 'Estado generado', tone: 'text-emerald-600' },
+        { title: 'En Proceso', value: formatCompactNumber(reports.filter((row) => row.estado === 'EN_PROCESO').length), meta: 'Seguimiento activo', tone: 'text-blue-600' },
+        { title: 'Fallidos', value: formatCompactNumber(reports.filter((row) => row.estado === 'ERROR').length), meta: 'Requieren revision', tone: 'text-red-600' }
+    ];
+
+    const filteredRows = reports.filter((row) =>
+        row.titulo?.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    const weekdays = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
+    const chartMap = { DOM: 0, LUN: 0, MAR: 0, MIE: 0, JUE: 0, VIE: 0, SAB: 0 };
+    reports.forEach((report) => {
+        if (!report.fechaGeneracion) {
+            return;
+        }
+        const day = weekdays[new Date(report.fechaGeneracion).getDay()];
+        chartMap[day] += 1;
+    });
+    const chartData = weekdays.map((day) => ({ day, total: chartMap[day] }));
 
     return (
         <div className="min-h-full bg-white p-6 text-slate-900">
@@ -41,7 +44,7 @@ export const ReportsPage = () => {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                         <h1 className="text-3xl font-bold">Centro de Reportes</h1>
-                        <p className="mt-1 text-sm text-slate-500">Centro estatico de generacion y seguimiento documental.</p>
+                        <p className="mt-1 text-sm text-slate-500">Listado y generacion conectados al servicio de reportes via BFF.</p>
                     </div>
                     <button
                         onClick={() => setShowModal(true)}
@@ -77,9 +80,9 @@ export const ReportsPage = () => {
                             <SlidersHorizontal className="mr-2 h-4 w-4" />
                             Filtros
                         </button>
-                        <button className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm">
+                        <button onClick={refetch} className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm">
                             <CalendarDays className="mr-2 h-4 w-4" />
-                            Ultimos 30 dias
+                            Recargar
                         </button>
                     </div>
                 </div>
@@ -87,6 +90,9 @@ export const ReportsPage = () => {
                 <div className="grid gap-6 xl:grid-cols-[1.7fr_0.8fr]">
                     <div className="space-y-6">
                         <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+                            {error ? (
+                                <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+                            ) : null}
                             <div className="overflow-x-auto">
                                 <table className="min-w-full divide-y divide-slate-200">
                                     <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
@@ -99,43 +105,53 @@ export const ReportsPage = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-200 bg-white text-sm text-slate-700">
-                                        {filteredRows.map((row) => (
-                                            <tr key={row.title}>
-                                                <td className="px-4 py-4 font-semibold text-slate-900">{row.title}</td>
-                                                <td className="px-4 py-4">{row.type}</td>
-                                                <td className="px-4 py-4">{row.date}</td>
+                                        {loading ? (
+                                            <tr>
+                                                <td colSpan="5" className="px-4 py-8 text-center text-sm text-slate-500">Cargando reportes...</td>
+                                            </tr>
+                                        ) : null}
+                                        {!loading && !filteredRows.length ? (
+                                            <tr>
+                                                <td colSpan="5" className="px-4 py-8 text-center text-sm text-slate-500">No hay reportes para la busqueda actual.</td>
+                                            </tr>
+                                        ) : null}
+                                        {!loading && filteredRows.map((row) => (
+                                            <tr key={row.id}>
+                                                <td className="px-4 py-4 font-semibold text-slate-900">{row.titulo}</td>
+                                                <td className="px-4 py-4">{titleCase(row.tipo)}</td>
+                                                <td className="px-4 py-4">{formatDateTime(row.fechaGeneracion)}</td>
                                                 <td className="px-4 py-4">
-                                                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${row.statusClass}`}>
-                                                        {row.status}
+                                                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusClassMap[row.estado] || 'bg-slate-100 text-slate-600 ring-slate-200'}`}>
+                                                        {titleCase(row.estado)}
                                                     </span>
                                                 </td>
                                                 <td className="px-4 py-4">
                                                     <div className="flex items-center gap-2">
                                                         <button
-                                                            onClick={() => alert(`Ver reporte: ${row.title}`)}
+                                                            onClick={() => alert(`Parametros: ${JSON.stringify(safeJsonParse(row.parametros, {}), null, 2)}`)}
                                                             className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
                                                         >
                                                             <Eye className="h-4 w-4" />
                                                         </button>
-                                                        {row.actions === 'download' ? (
+                                                        {row.estado === 'GENERADO' ? (
                                                             <button
-                                                                onClick={() => alert(`Descargar reporte: ${row.title}`)}
+                                                                onClick={() => alert(`Descarga documental aun no implementada para ${row.titulo}`)}
                                                                 className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
                                                             >
                                                                 <Download className="h-4 w-4" />
                                                             </button>
                                                         ) : null}
-                                                        {row.actions === 'refresh' ? (
+                                                        {row.estado === 'ERROR' ? (
                                                             <button
-                                                                onClick={() => alert(`Reintentar generacion: ${row.title}`)}
+                                                                onClick={refetch}
                                                                 className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
                                                             >
                                                                 <RefreshCw className="h-4 w-4" />
                                                             </button>
                                                         ) : null}
-                                                        {row.actions === 'disabled' ? (
+                                                        {row.estado === 'EN_PROCESO' ? (
                                                             <button
-                                                                onClick={() => alert(`Reporte en proceso: ${row.title}`)}
+                                                                onClick={() => alert(`Reporte en proceso: ${row.titulo}`)}
                                                                 className="rounded-lg p-2 text-slate-300"
                                                             >
                                                                 <Download className="h-4 w-4" />
@@ -153,7 +169,7 @@ export const ReportsPage = () => {
                         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                             <div className="mb-5">
                                 <h2 className="text-lg font-semibold text-slate-900">Tendencia de Generacion</h2>
-                                <p className="text-sm text-slate-500">Actividad de los ultimos 7 dias.</p>
+                                <p className="text-sm text-slate-500">Actividad agregada por dia de semana.</p>
                             </div>
                             <div className="h-72">
                                 <ResponsiveContainer width="100%" height="100%">
@@ -171,9 +187,9 @@ export const ReportsPage = () => {
 
                     <aside className="rounded-3xl bg-brand-dark p-6 text-white shadow-sm">
                         <p className="text-sm uppercase tracking-[0.2em] text-blue-200">Suscripcion Premium</p>
-                        <h2 className="mt-3 text-2xl font-bold">Automatiza entregas y alertas ejecutivas.</h2>
+                        <h2 className="mt-3 text-2xl font-bold">Estados reales del flujo documental.</h2>
                         <p className="mt-3 text-sm text-slate-300">
-                            Configura notificaciones proactivas para estados fallidos, cargas masivas y ventanas de publicacion.
+                            Reportes generados: {reports.filter((row) => row.estado === 'GENERADO').length}. En error: {reports.filter((row) => row.estado === 'ERROR').length}.
                         </p>
                         <button className="mt-6 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-brand-dark transition hover:bg-slate-100">
                             Configurar Alertas Pro
@@ -198,15 +214,19 @@ export const ReportsPage = () => {
                                         onChange={(event) => setReportType(event.target.value)}
                                         className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-700 outline-none"
                                     >
-                                        <option value="Financiero">Financiero</option>
-                                        <option value="Logistica">Logistica</option>
-                                        <option value="Auditoria">Auditoria</option>
-                                        <option value="RRHH">RRHH</option>
+                                        <option value="VENTAS_POR_SUCURSAL">Ventas por sucursal</option>
+                                        <option value="INVENTARIO_CONSOLIDADO">Inventario consolidado</option>
+                                        <option value="KPI_MENSUAL">KPI mensual</option>
+                                        <option value="BALANCE_FINANCIERO">Balance financiero</option>
                                     </select>
                                 </div>
                                 <button
-                                    onClick={() => {
-                                        alert(`Generando reporte de tipo ${reportType}`);
+                                    onClick={async () => {
+                                        await generateReport({
+                                            tipo: reportType,
+                                            titulo: `Reporte ${titleCase(reportType)} ${new Date().toLocaleDateString('es-CL')}`,
+                                            parametros: JSON.stringify({ generadoDesdeFrontend: true }),
+                                        });
                                         setShowModal(false);
                                     }}
                                     className="w-full rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold text-white"
