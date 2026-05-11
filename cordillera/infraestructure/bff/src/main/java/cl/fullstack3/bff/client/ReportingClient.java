@@ -15,12 +15,14 @@ import java.util.Map;
 @Slf4j
 public class ReportingClient {
 
+    private static final String REPORTING_BASE_URL = "http://host.docker.internal:8092/api/reports";
+
     private final WebClient.Builder webClientBuilder;
 
     public Mono<Object> fetchReports() {
         return webClientBuilder.build()
                 .get()
-                .uri("http://ms-reporting/api/reports")
+                .uri(REPORTING_BASE_URL)
                 .retrieve()
                 .bodyToMono(Object.class)
                 .timeout(Duration.ofSeconds(5))
@@ -33,7 +35,7 @@ public class ReportingClient {
     public Mono<Object> findById(Long id) {
         return webClientBuilder.build()
                 .get()
-                .uri("http://ms-reporting/api/reports/{id}", id)
+                .uri(REPORTING_BASE_URL + "/{id}", id)
                 .retrieve()
                 .bodyToMono(Object.class)
                 .timeout(Duration.ofSeconds(5))
@@ -46,7 +48,7 @@ public class ReportingClient {
     public Mono<Object> generate(Object body) {
         return webClientBuilder.build()
                 .post()
-                .uri("http://ms-reporting/api/reports/generate")
+                .uri(REPORTING_BASE_URL + "/generate")
                 .bodyValue(body)
                 .retrieve()
                 .bodyToMono(Object.class)

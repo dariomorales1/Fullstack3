@@ -1,7 +1,8 @@
 import React from 'react';
-import { Plus, Search, SlidersHorizontal, CalendarDays, Eye, Download, RefreshCw, X } from 'lucide-react';
+import { Plus, Search, SlidersHorizontal, RefreshCw, Download, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useReports } from '../hooks/useReports.js';
+import { exportWorkbook } from '../utils/exportExcel.js';
 import { formatCompactNumber, formatDateTime, safeJsonParse, titleCase } from '../utils/formatters.js';
 import { PageHeader } from '../components/layout/PageHeader';
 import { KpiCard } from '../components/ui/KpiCard';
@@ -34,74 +35,55 @@ export const ReportsPage = () => {
     });
     const chartData = weekdays.map((day) => ({ day, total: chartMap[day] }));
 
-    const columns = [
-        {
-            header: 'Titulo',
-            render: (row) => <span className="font-semibold text-slate-900">{row.titulo}</span>
-        },
-        {
-            header: 'Tipo',
-            render: (row) => titleCase(row.tipo)
-        },
-        {
-            header: 'Fecha',
-            render: (row) => formatDateTime(row.fechaGeneracion)
-        },
-        {
-            header: 'Estado',
-            render: (row) => <StatusBadge status={row.estado} />
-        },
-        {
-            header: 'Acciones',
-            render: (row) => (
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => alert(`Parametros: ${JSON.stringify(safeJsonParse(row.parametros, {}), null, 2)}`)}
-                        className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                    >
-                        <Eye className="h-4 w-4" />
-                    </button>
+    const handleExportAll = () => {
+        exportWorkbook('reportes-cordillera', [
+            {
+                name: 'Reportes',
+                columns: ['Titulo', 'Tipo', 'Fecha', 'Estado', 'Parametros'],
+                rows: filteredRows.map((row) => ({
+                    Titulo: row.titulo,
+                    Tipo: titleCase(row.tipo),
+                    Fecha: formatDateTime(row.fechaGeneracion),
+                    Estado: titleCase(row.estado),
+                    Parametros: JSON.stringify(safeJsonParse(row.parametros, {})),
+                })),
+            },
+            {
+                name: 'Tendencia',
+                columns: ['Dia', 'Total'],
+                rows: chartData.map((row) => ({
+                    Dia: row.day,
+                    Total: row.total,
+                })),
+            },
+        ]);
+    };
 
-                    {row.estado === 'GENERADO' && (
-                        <button
-                            onClick={() => alert(`Descarga documental aun no implementada para ${row.titulo}`)}
-                            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                        >
-                            <Download className="h-4 w-4" />
-                        </button>
-                    )}
-
-                    {row.estado === 'ERROR' && (
-                        <button
-                            onClick={refetch}
-                            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                        >
-                            <RefreshCw className="h-4 w-4" />
-                        </button>
-                    )}
-
-                    {row.estado === 'EN_PROCESO' && (
-                        <button
-                            onClick={() => alert(`Reporte en proceso: ${row.titulo}`)}
-                            className="rounded-lg p-2 text-slate-300"
-                        >
-                            <Download className="h-4 w-4" />
-                        </button>
-                    )}
-                </div>
-            )
-        }
-    ];
-
-    const generateReportBtn = (
-        <button
-            onClick={() => setShowModal(true)}
-            className="inline-flex items-center rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold text-white shadow-sm"
-        >
-            <Plus className="mr-2 h-4 w-4" />
-            Generar Nuevo Reporte
-        </button>
-    );
+    const handleExportReport = (report) => {
+        exportWorkbook(`reporte-${report.id}`, [
+            {
+                name: 'Resumen',
+                columns: ['Campo', 'Valor'],
+                rows: [
+                    { Campo: 'ID', Valor: report.id },
+                    { Campo: 'Titulo', Valor: report.titulo },
+                    { Campo: 'Tipo', Valor: titleCase(report.tipo) },
+                    { Campo: 'Fecha Generacion', Valor: formatDateTime(report.fechaGeneracion) },
+                    { Campo: 'Estado', Valor: titleCase(report.estado) },
+                    { Campo: 'Parametros', Valor: JSON.stringify(safeJsonParse(report.parametros, {})) },
+                ],
+            },
+            {
+                name: 'Contenidos',
+                columns: ['Seccion', 'Orden', 'Datos'],
+                rows: (report.contenidos || []).map((item) => ({
+                    Seccion: item.seccion,
+                    Orden: item.orden,
+                    Datos: item.datosJson,
+                })),
+            },
+        ]);
+    };
 
     return (
         <div className="min-h-full bg-white p-6 text-slate-900">
@@ -134,18 +116,83 @@ export const ReportsPage = () => {
                             <SlidersHorizontal className="mr-2 h-4 w-4" />
                             Filtros
                         </button>
+                        <button
+                            onClick={handleExportAll}
+                            disabled={!filteredRows.length}
+                            className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            <Download className="mr-2 h-4 w-4" />
+                            Exportar
+                        </button>
                         <button onClick={refetch} className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm">
-                            <CalendarDays className="mr-2 h-4 w-4" />
+                            <RefreshCw className="mr-2 h-4 w-4" />
                             Recargar
                         </button>
                     </div>
                 </div>
 
                 <div className="grid gap-6 xl:grid-cols-[1.7fr_0.8fr]">
-                    <div className="space-y-0">
-                        {error && (
-                            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                                {error}
+                    <div className="space-y-6">
+                        <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
+                            {error ? (
+                                <div className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+                            ) : null}
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-slate-200">
+                                    <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                                        <tr>
+                                            <th className="px-4 py-4">Titulo</th>
+                                            <th className="px-4 py-4">Tipo</th>
+                                            <th className="px-4 py-4">Fecha</th>
+                                            <th className="px-4 py-4">Estado</th>
+                                            <th className="px-4 py-4">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-200 bg-white text-sm text-slate-700">
+                                        {loading ? (
+                                            <tr>
+                                                <td colSpan="5" className="px-4 py-8 text-center text-sm text-slate-500">Cargando reportes...</td>
+                                            </tr>
+                                        ) : null}
+                                        {!loading && !filteredRows.length ? (
+                                            <tr>
+                                                <td colSpan="5" className="px-4 py-8 text-center text-sm text-slate-500">No hay reportes para la busqueda actual.</td>
+                                            </tr>
+                                        ) : null}
+                                        {!loading && filteredRows.map((row) => (
+                                            <tr key={row.id}>
+                                                <td className="px-4 py-4 font-semibold text-slate-900">{row.titulo}</td>
+                                                <td className="px-4 py-4">{titleCase(row.tipo)}</td>
+                                                <td className="px-4 py-4">{formatDateTime(row.fechaGeneracion)}</td>
+                                                <td className="px-4 py-4">
+                                                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusClassMap[row.estado] || 'bg-slate-100 text-slate-600 ring-slate-200'}`}>
+                                                        {titleCase(row.estado)}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-4">
+                                                    <div className="flex items-center gap-2">
+                                                        {row.estado === 'GENERADO' ? (
+                                                            <button
+                                                                onClick={() => handleExportReport(row)}
+                                                                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                                                            >
+                                                                <Download className="h-4 w-4" />
+                                                            </button>
+                                                        ) : null}
+                                                        {row.estado === 'ERROR' ? (
+                                                            <button
+                                                                onClick={refetch}
+                                                                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                                                            >
+                                                                <RefreshCw className="h-4 w-4" />
+                                                            </button>
+                                                        ) : null}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         )}
 
@@ -176,17 +223,16 @@ export const ReportsPage = () => {
                             </div>
                         </div>
 
-                        <aside className="rounded-3xl bg-brand-dark p-6 text-white shadow-sm">
-                            <p className="text-sm uppercase tracking-[0.2em] text-blue-200">Suscripcion Premium</p>
-                            <h2 className="mt-3 text-2xl font-bold">Estados reales del flujo documental.</h2>
-                            <p className="mt-3 text-sm text-slate-300">
-                                Reportes generados: {reports.filter((row) => row.estado === 'GENERADO').length}. En error: {reports.filter((row) => row.estado === 'ERROR').length}.
-                            </p>
-                            <button className="mt-6 w-full rounded-xl bg-white px-4 py-3 text-sm font-semibold text-brand-dark transition hover:bg-slate-100">
-                                Configurar Alertas Pro
-                            </button>
-                        </aside>
-                    </div>
+                    <aside className="rounded-3xl bg-brand-dark p-6 text-white shadow-sm">
+                        <p className="text-sm uppercase tracking-[0.2em] text-blue-200">Suscripcion Premium</p>
+                        <h2 className="mt-3 text-2xl font-bold">Estados reales del flujo documental.</h2>
+                        <p className="mt-3 text-sm text-slate-300">
+                            Reportes generados: {reports.filter((row) => row.estado === 'GENERADO').length}. En error: {reports.filter((row) => row.estado === 'ERROR').length}.
+                        </p>
+                        <button onClick={() => alert('Configurar alertas PRO pronto estara disponible.')} className="mt-6 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-brand-dark transition hover:bg-slate-100">
+                            Configurar Alertas Pro
+                        </button>
+                    </aside>
                 </div>
 
                 {showModal && (

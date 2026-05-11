@@ -17,12 +17,14 @@ import java.util.List;
 @Slf4j
 public class KpisClient {
 
+    private static final String KPIS_BASE_URL = "http://host.docker.internal:8091/api/kpis";
+
     private final WebClient.Builder webClientBuilder;
 
     public Mono<List<KpiDTO>> fetchAllKpis() {
         return webClientBuilder.build()
                 .get()
-                .uri("http://ms-kpis/api/kpis")
+                .uri(KPIS_BASE_URL)
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<KpiDTO>>() {})
                 .timeout(Duration.ofSeconds(5))
@@ -35,7 +37,7 @@ public class KpisClient {
     public Mono<Object> fetchRaw() {
         return webClientBuilder.build()
                 .get()
-                .uri("http://ms-kpis/api/kpis")
+                .uri(KPIS_BASE_URL)
                 .retrieve()
                 .bodyToMono(Object.class)
                 .timeout(Duration.ofSeconds(5))
@@ -48,7 +50,7 @@ public class KpisClient {
     public Mono<Object> findById(Long id) {
         return webClientBuilder.build()
                 .get()
-                .uri("http://ms-kpis/api/kpis/{id}", id)
+                .uri(KPIS_BASE_URL + "/{id}", id)
                 .retrieve()
                 .bodyToMono(Object.class)
                 .timeout(Duration.ofSeconds(5))
@@ -61,7 +63,7 @@ public class KpisClient {
     public Mono<Object> getLatestResult(Long id) {
         return webClientBuilder.build()
                 .get()
-                .uri("http://ms-kpis/api/kpis/{id}/resultado", id)
+                .uri(KPIS_BASE_URL + "/{id}/resultado", id)
                 .retrieve()
                 .bodyToMono(Object.class)
                 .timeout(Duration.ofSeconds(5))
@@ -74,7 +76,7 @@ public class KpisClient {
     public Mono<Object> findByPeriod(Long periodoId) {
         return webClientBuilder.build()
                 .get()
-                .uri("http://ms-kpis/api/kpis/periodo/{periodoId}", periodoId)
+                .uri(KPIS_BASE_URL + "/periodo/{periodoId}", periodoId)
                 .retrieve()
                 .bodyToMono(Object.class)
                 .timeout(Duration.ofSeconds(5))

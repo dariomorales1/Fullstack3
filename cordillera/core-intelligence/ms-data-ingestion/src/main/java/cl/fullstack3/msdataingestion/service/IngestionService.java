@@ -96,6 +96,7 @@ public class IngestionService {
                 .executionDate(executionDate)
                 .totalRecordsProcessed(totalRecords)
                 .totalErrors(totalErrors)
+                .status(totalErrors == 0 ? "SUCCESS" : "ERROR")
                 .sourceResults(sourceResults)
                 .build();
     }
@@ -108,6 +109,7 @@ public class IngestionService {
                     .executionDate(null)
                     .totalRecordsProcessed(0)
                     .totalErrors(0)
+                    .status("SIN_EJECUCION")
                     .sourceResults(List.of())
                     .build();
         }
@@ -135,6 +137,7 @@ public class IngestionService {
                 .executionDate(lastExecution)
                 .totalRecordsProcessed(totalRecords)
                 .totalErrors(totalErrors)
+                .status(totalErrors == 0 ? "SUCCESS" : "ERROR")
                 .sourceResults(sourceResults)
                 .build();
     }

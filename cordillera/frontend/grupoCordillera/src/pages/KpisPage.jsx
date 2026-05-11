@@ -1,6 +1,7 @@
 import React from 'react';
-import { TrendingUp, SlidersHorizontal, Download } from 'lucide-react';
+import { TrendingUp, SlidersHorizontal, Download, X } from 'lucide-react';
 import { Dropdown } from '../components/ui/Dropdown';
+import { exportWorkbook } from '../utils/exportExcel.js';
 import { useKpis } from '../hooks/useKpis.js';
 import { formatCompactNumber, titleCase } from '../utils/formatters.js';
 import { PageHeader } from '../components/layout/PageHeader';
@@ -19,6 +20,17 @@ export const KpisPage = () => {
     const [calculated, setCalculated] = React.useState(false);
     const [kpiTypeFilter, setKpiTypeFilter] = React.useState('Todos');
     const [period, setPeriod] = React.useState('Periodo 1');
+    const [showAdvancedFilters, setShowAdvancedFilters] = React.useState(false);
+    const [advancedFilters, setAdvancedFilters] = React.useState({
+        search: '',
+        status: 'Todos',
+        minCompliance: '0',
+    });
+    const [draftFilters, setDraftFilters] = React.useState({
+        search: '',
+        status: 'Todos',
+        minCompliance: '0',
+    });
     const { kpis, loading, error, refetch } = useKpis(periodMap[period]);
 
     const handleRefresh = async () => {
@@ -34,10 +46,22 @@ export const KpisPage = () => {
 
     const kpiTypes = ['Todos', ...new Set(kpis.map((row) => titleCase(row.tipo)).filter(Boolean))];
     const periodOptions = Object.keys(periodMap);
+    const advancedStatusOptions = ['Todos', ...new Set(kpis.map((row) => titleCase(row.resultado?.estado)).filter(Boolean))];
 
-    const filteredRows = kpiTypeFilter === 'Todos'
+    const typeFilteredRows = kpiTypeFilter === 'Todos'
         ? kpis
         : kpis.filter((row) => titleCase(row.tipo) === kpiTypeFilter);
+
+    const filteredRows = typeFilteredRows.filter((row) => {
+        const matchesSearch = !advancedFilters.search
+            || row.nombre?.toLowerCase().includes(advancedFilters.search.toLowerCase())
+            || row.codigo?.toLowerCase().includes(advancedFilters.search.toLowerCase());
+        const matchesStatus = advancedFilters.status === 'Todos'
+            || titleCase(row.resultado?.estado) === advancedFilters.status;
+        const compliance = Number(row.resultado?.porcentajeCumplimiento ?? 0);
+        const matchesCompliance = compliance >= Number(advancedFilters.minCompliance ?? 0);
+        return matchesSearch && matchesStatus && matchesCompliance;
+    });
 
     const completedCount = kpis.filter((row) => row.resultado?.estado === 'CUMPLIDO').length;
     const riskCount = kpis.filter((row) => row.resultado?.estado === 'EN_RIESGO').length;
@@ -45,56 +69,29 @@ export const KpisPage = () => {
         ? Math.round(kpis.reduce((acc, row) => acc + Number(row.resultado?.porcentajeCumplimiento ?? 0), 0) / kpis.length)
         : 0;
 
-    const columns = [
-        {
-            header: 'Codigo',
-            render: (row) => <span className="font-semibold text-slate-900">{row.codigo}</span>
-        },
-        { header: 'Nombre', accessor: 'nombre' },
-        {
-            header: 'Tipo',
-            render: (row) => titleCase(row.tipo)
-        },
-        {
-            header: 'Valor Real',
-            render: (row) => row.resultado?.valorReal ?? 'Sin resultado'
-        },
-        {
-            header: 'Meta',
-            render: (row) => row.unidad || 'N/D'
-        },
-        {
-            header: 'Cumplimiento',
-            render: (row) => row.resultado?.porcentajeCumplimiento != null
-                ? `${Number(row.resultado.porcentajeCumplimiento).toFixed(1)}%`
-                : 'N/D'
-        },
-        {
-            header: 'Estado',
-            render: (row) => <StatusBadge status={row.resultado?.estado || 'Sin resultado'} />
-        }
-    ];
+    const handleExport = () => {
+        exportWorkbook('kpis-cordillera', [
+            {
+                name: 'KPIs',
+                columns: ['Codigo', 'Nombre', 'Tipo', 'Unidad', 'Valor Real', 'Meta', 'Cumplimiento', 'Estado'],
+                rows: filteredRows.map((row) => ({
+                    Codigo: row.codigo,
+                    Nombre: row.nombre,
+                    Tipo: titleCase(row.tipo),
+                    Unidad: row.unidad || 'N/D',
+                    'Valor Real': row.resultado?.valorReal ?? row.valorReal ?? '',
+                    Meta: row.valorMeta ?? '',
+                    Cumplimiento: row.resultado?.porcentajeCumplimiento ?? '',
+                    Estado: row.resultado?.estado ? titleCase(row.resultado.estado) : 'Sin resultado',
+                })),
+            },
+        ]);
+    };
 
-    const refreshBtn = (
-        <button
-            onClick={handleRefresh}
-            className="inline-flex items-center self-start rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition"
-        >
-            <TrendingUp className={`mr-2 h-4 w-4 ${calculating ? 'animate-spin' : ''}`} />
-            Actualizar KPIs
-        </button>
-    );
-
-    const CustomTitle = (
-        <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-bold">Gestion de Indicadores KPIs</h1>
-            {calculated && (
-                <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                    KPIs actualizados
-                </span>
-            )}
-        </div>
-    );
+    const applyAdvancedFilters = () => {
+        setAdvancedFilters(draftFilters);
+        setShowAdvancedFilters(false);
+    };
 
     return (
         <div className="min-h-full bg-white p-6 text-slate-900">
@@ -112,11 +109,15 @@ export const KpisPage = () => {
                         <Dropdown label="Periodo" value={period} options={periodOptions} onChange={setPeriod} />
                     </div>
                     <div className="flex gap-3">
-                        <button className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm">
+                        <button onClick={() => setShowAdvancedFilters(true)} className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm">
                             <SlidersHorizontal className="mr-2 h-4 w-4" />
                             Filtros Avanzados
                         </button>
-                        <button className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm">
+                        <button
+                            onClick={handleExport}
+                            disabled={!filteredRows.length}
+                            className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
                             <Download className="mr-2 h-4 w-4" />
                             Exportar
                         </button>
@@ -174,6 +175,38 @@ export const KpisPage = () => {
                     </div>
                 </div>
             </div>
+
+            {showAdvancedFilters ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+                    <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-xl font-bold text-slate-900">Filtros Avanzados</h2>
+                            <button onClick={() => setShowAdvancedFilters(false)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        <div className="mt-5 grid gap-4">
+                            <label className="text-sm font-medium text-slate-700">
+                                Buscar por codigo o nombre
+                                <input value={draftFilters.search} onChange={(event) => setDraftFilters((current) => ({ ...current, search: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none" />
+                            </label>
+                            <label className="text-sm font-medium text-slate-700">
+                                Estado
+                                <select value={draftFilters.status} onChange={(event) => setDraftFilters((current) => ({ ...current, status: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none">
+                                    {advancedStatusOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                                </select>
+                            </label>
+                            <label className="text-sm font-medium text-slate-700">
+                                Cumplimiento minimo
+                                <input type="number" min="0" max="200" value={draftFilters.minCompliance} onChange={(event) => setDraftFilters((current) => ({ ...current, minCompliance: event.target.value }))} className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none" />
+                            </label>
+                        </div>
+                        <button onClick={applyAdvancedFilters} className="mt-6 w-full rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold text-white">
+                            Aplicar Filtros
+                        </button>
+                    </div>
+                </div>
+            ) : null}
         </div>
     );
 };

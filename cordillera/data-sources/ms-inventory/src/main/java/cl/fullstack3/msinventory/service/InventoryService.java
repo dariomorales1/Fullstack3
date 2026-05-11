@@ -31,6 +31,7 @@ public class InventoryService {
     public Product saveProduct(Product product) {
         if (product.getStocks() != null) {
             product.getStocks().forEach(stock -> {
+                stock.setProduct(product);
                 if (stock.getLastUpdated() == null) {
                     stock.setLastUpdated(LocalDateTime.now());
                 }

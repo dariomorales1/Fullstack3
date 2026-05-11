@@ -10,4 +10,9 @@ export const financeApi = {
         const response = await axiosInstance.get('/api/finance/balances');
         return response.data;
     },
+
+    async createMovement(payload) {
+        const response = await axiosInstance.post('/api/finance/movements', payload);
+        return response.data;
+    },
 };

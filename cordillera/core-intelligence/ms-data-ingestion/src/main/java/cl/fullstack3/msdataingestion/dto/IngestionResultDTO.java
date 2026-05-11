@@ -14,6 +14,7 @@ public class IngestionResultDTO {
     private LocalDateTime executionDate;
     private int totalRecordsProcessed;
     private int totalErrors;
+    private String status;
     private List<SourceResult> sourceResults;
 
     @Data @NoArgsConstructor @AllArgsConstructor @Builder

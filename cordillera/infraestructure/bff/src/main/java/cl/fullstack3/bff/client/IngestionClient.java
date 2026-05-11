@@ -14,12 +14,14 @@ import java.util.Map;
 @Slf4j
 public class IngestionClient {
 
+    private static final String INGESTION_BASE_URL = "http://host.docker.internal:8090/api/ingestion";
+
     private final WebClient.Builder webClientBuilder;
 
     public Mono<Object> fetchStatus() {
         return webClientBuilder.build()
                 .get()
-                .uri("http://ms-data-ingestion/api/ingestion/status")
+                .uri(INGESTION_BASE_URL + "/status")
                 .retrieve()
                 .bodyToMono(Object.class)
                 .timeout(Duration.ofSeconds(5))
@@ -32,7 +34,7 @@ public class IngestionClient {
     public Mono<Object> fetchDataBySource(String source) {
         return webClientBuilder.build()
                 .get()
-                .uri("http://ms-data-ingestion/api/ingestion/data/{source}", source)
+                .uri(INGESTION_BASE_URL + "/data/{source}", source)
                 .retrieve()
                 .bodyToMono(Object.class)
                 .timeout(Duration.ofSeconds(5))

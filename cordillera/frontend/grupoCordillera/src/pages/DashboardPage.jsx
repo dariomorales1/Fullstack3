@@ -1,6 +1,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Dropdown } from '../components/ui/Dropdown';
+import { useDashboard } from '../hooks/useDashboard.js';
+import { exportWorkbook } from '../utils/exportExcel.js';
+import { formatCompactNumber, formatCurrency, formatDateTime, titleCase } from '../utils/formatters.js';
 import {
     AlertTriangle,
     Download,
@@ -21,46 +24,108 @@ import {
     ResponsiveContainer
 } from 'recharts';
 
-const branchSales = [
-    { name: 'STGO', ventas: 180 },
-    { name: 'VALP', ventas: 120 },
-    { name: 'CONC', ventas: 90 },
-    { name: 'ANTO', ventas: 60 }
-];
-
-const revenueTrend = [
-    { name: 'ENE', ventas: 320 },
-    { name: 'FEB', ventas: 380 },
-    { name: 'MAR', ventas: 350 },
-    { name: 'ABR', ventas: 410 },
-    { name: 'MAY', ventas: 430 },
-    { name: 'JUN', ventas: 450 }
-];
-
 const periodOptions = ['Mes Actual', 'Mes Anterior', 'Ultimo Trimestre', 'Ano Actual'];
 const categoryOptions = ['Todas las Categorias', 'Ventas', 'Inventario', 'Finanzas', 'Clientes'];
 
-const metrics = [
-    { title: 'Ventas Totales', value: 'CLP 450M', delta: '+12%', tone: 'text-emerald-600', icon: ArrowUpRight },
-    { title: 'Inventario Valorizado', value: 'CLP 1.2B', delta: '-5%', tone: 'text-rose-600', icon: ArrowDownRight },
-    { title: 'Margen Financiero', value: '18.5%', delta: 'Estable', tone: 'text-slate-500', icon: Minus },
-    { title: 'Clientes Activos', value: '1250', delta: '+3%', tone: 'text-emerald-600', icon: ArrowUpRight }
-];
-
-const alerts = [
-    { title: 'Stock Critico Bodega Central', time: 'Hace 2h' },
-    { title: 'Proxima Junta de Directorio', time: 'Manana' }
-];
-
 export const DashboardPage = () => {
     const navigate = useNavigate();
-    const [loading, setLoading] = React.useState(false);
     const [period, setPeriod] = React.useState('Mes Actual');
     const [category, setCategory] = React.useState('Todas las Categorias');
+    const { data, loading, error, refetch } = useDashboard(period, category);
+
+    const metrics = React.useMemo(() => {
+        const directionMap = {
+            up: { tone: 'text-emerald-600', icon: ArrowUpRight },
+            down: { tone: 'text-rose-600', icon: ArrowDownRight },
+            neutral: { tone: 'text-slate-500', icon: Minus },
+        };
+
+        return (data?.metrics || []).map((metric) => {
+            const config = directionMap[metric.direction] || directionMap.neutral;
+            let value = metric.value;
+
+            if (metric.format === 'currency') {
+                value = formatCurrency(metric.value);
+            } else if (metric.format === 'percentage') {
+                value = `${Number(metric.value ?? 0).toFixed(1)}%`;
+            } else {
+                value = formatCompactNumber(metric.value);
+            }
+
+            return {
+                ...metric,
+                value,
+                tone: config.tone,
+                icon: config.icon,
+            };
+        });
+    }, [data]);
 
     const handleRefresh = () => {
-        setLoading(true);
-        setTimeout(() => setLoading(false), 1200);
+        refetch();
+    };
+
+    const handleExport = () => {
+        if (!data) {
+            return;
+        }
+
+        exportWorkbook('dashboard-cordillera', [
+            {
+                name: 'Resumen',
+                columns: ['Metrica', 'Valor', 'Detalle'],
+                rows: (data.metrics || []).map((metric) => ({
+                    Metrica: metric.title,
+                    Valor: metric.value,
+                    Detalle: metric.delta,
+                })),
+            },
+            {
+                name: 'Ventas por Sucursal',
+                columns: ['Sucursal', 'Ventas'],
+                rows: data.branchSales || [],
+            },
+            {
+                name: 'Tendencia',
+                columns: ['Periodo', 'Ventas'],
+                rows: (data.revenueTrend || []).map((item) => ({
+                    Periodo: item.name,
+                    Ventas: item.ventas,
+                })),
+            },
+            {
+                name: 'Alertas',
+                columns: ['Titulo', 'Categoria', 'Origen'],
+                rows: (data.alerts || []).map((alert) => ({
+                    Titulo: alert.title,
+                    Categoria: alert.category,
+                    Origen: alert.time,
+                })),
+            },
+            {
+                name: 'KPIs Dashboard',
+                columns: ['Codigo', 'Nombre', 'Tipo', 'Valor Real', 'Meta', 'Cumplimiento', 'Estado'],
+                rows: (data.dashboard?.kpis || []).map((kpi) => ({
+                    Codigo: kpi.codigo,
+                    Nombre: kpi.nombre,
+                    Tipo: kpi.tipo,
+                    'Valor Real': kpi.valorReal,
+                    Meta: kpi.valorMeta,
+                    Cumplimiento: kpi.porcentajeCumplimiento,
+                    Estado: kpi.estado,
+                })),
+            },
+            {
+                name: 'Reportes Recientes',
+                columns: ['Titulo', 'Tipo', 'Fecha Generacion', 'Estado'],
+                rows: (data.dashboard?.reportesRecientes || []).map((report) => ({
+                    Titulo: report.titulo,
+                    Tipo: report.tipo,
+                    'Fecha Generacion': formatDateTime(report.fechaGeneracion),
+                    Estado: report.estado,
+                })),
+            },
+        ]);
     };
 
     return (
@@ -69,8 +134,14 @@ export const DashboardPage = () => {
                 <div className="flex items-start gap-3 rounded-2xl border border-yellow-300 bg-yellow-50 px-5 py-4 text-yellow-900">
                     <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0" />
                     <div>
-                        <p className="font-semibold">Alerta de sincronizacion Antofagasta</p>
-                        <p className="text-sm text-yellow-800">La ultima sincronizacion de inventario para Antofagasta presenta desfase operativo.</p>
+                        <p className="font-semibold">
+                            Estado de ingesta: {titleCase(data?.dashboard?.summary?.estadoIngestion || 'sin informacion')}
+                        </p>
+                        <p className="text-sm text-yellow-800">
+                            {data?.dashboard?.degraded
+                                ? `Servicios degradados: ${(data.dashboard.serviciosDegradados || []).join(', ')}.`
+                                : `Ultima consolidacion generada ${formatDateTime(data?.generatedAt)}.`}
+                        </p>
                     </div>
                 </div>
 
@@ -80,7 +151,11 @@ export const DashboardPage = () => {
                         <Dropdown label="Categoria" value={category} options={categoryOptions} onChange={setCategory} />
                     </div>
                     <div className="flex gap-3">
-                        <button className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300">
+                        <button
+                            onClick={handleExport}
+                            disabled={!data}
+                            className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
                             <Download className="mr-2 h-4 w-4" />
                             Exportar
                         </button>
@@ -93,6 +168,12 @@ export const DashboardPage = () => {
                         </button>
                     </div>
                 </div>
+
+                {error ? (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+                        {error}
+                    </div>
+                ) : null}
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     {metrics.map((metric) => {
@@ -118,7 +199,7 @@ export const DashboardPage = () => {
                         </div>
                         <div className="h-80">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={branchSales}>
+                                <BarChart data={data?.branchSales || []}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                                     <XAxis dataKey="name" stroke="#64748b" />
                                     <YAxis stroke="#64748b" />
@@ -136,7 +217,7 @@ export const DashboardPage = () => {
                         </div>
                         <div className="h-80">
                             <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={revenueTrend}>
+                                <LineChart data={data?.revenueTrend || []}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                                     <XAxis dataKey="name" stroke="#64748b" />
                                     <YAxis stroke="#64748b" />
@@ -151,9 +232,9 @@ export const DashboardPage = () => {
                 <div className="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
                     <section className="rounded-3xl bg-brand-dark p-6 text-white shadow-sm">
                         <p className="text-sm uppercase tracking-[0.2em] text-blue-200">Resumen Ejecutivo</p>
-                        <h2 className="mt-3 text-2xl font-bold">El holding mantiene crecimiento comercial con presion acotada en inventario.</h2>
+                        <h2 className="mt-3 text-2xl font-bold">{data?.executiveSummary?.title || 'Cargando resumen ejecutivo...'}</h2>
                         <p className="mt-3 max-w-3xl text-sm text-slate-300">
-                            Santiago y Valparaiso sostienen el alza semestral, mientras Antofagasta requiere intervencion operativa para regularizar sincronizacion y abastecimiento.
+                            {data?.executiveSummary?.description || 'Esperando datos consolidados del sistema.'}
                         </p>
                         <button
                             onClick={() => navigate('/reports')}
@@ -169,12 +250,16 @@ export const DashboardPage = () => {
                             <p className="text-sm text-slate-500">Eventos que requieren seguimiento.</p>
                         </div>
                         <div className="space-y-3">
-                            {alerts.map((alert) => (
+                            {(data?.alerts || []).length ? (data.alerts || []).map((alert) => (
                                 <div key={alert.title} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                                     <p className="font-semibold text-slate-900">{alert.title}</p>
                                     <p className="mt-1 text-sm text-slate-500">{alert.time}</p>
                                 </div>
-                            ))}
+                            )) : (
+                                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                                    No hay alertas activas para la categoria seleccionada.
+                                </div>
+                            )}
                         </div>
                     </section>
                 </div>

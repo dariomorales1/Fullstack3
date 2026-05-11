@@ -1,21 +1,35 @@
 import React from 'react';
-import { Plus, Download, Printer } from 'lucide-react';
+import { Plus, Download, Printer, MoreHorizontal, X } from 'lucide-react';
 import { Dropdown } from '../components/ui/Dropdown';
 import { useFinance } from '../hooks/useFinance.js';
+import { financeApi } from '../api/financeApi.js';
+import { exportWorkbook } from '../utils/exportExcel.js';
 import { formatCompactNumber, formatCurrency, formatDateTime, titleCase } from '../utils/formatters.js';
-import { PageHeader } from '../components/layout/PageHeader';
-import { KpiCard } from '../components/ui/KpiCard';
-import { StatusBadge } from '../components/ui/StatusBadge';
-import { ActionMenu } from '../components/ui/ActionMenu';
-import { DataTable } from '../components/ui/DataTable';
+
+const typeClassMap = {
+    INCOME: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+    INGRESO: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+    EXPENSE: 'bg-red-50 text-red-700 ring-red-200',
+    EGRESO: 'bg-red-50 text-red-700 ring-red-200'
+};
 
 export const FinancePage = () => {
-    const { movements = [], balances = [], loading, error } = useFinance();
-
+    const { movements, balances, loading, error, refetch } = useFinance();
     const [openMenuId, setOpenMenuId] = React.useState(null);
     const [periodFilter, setPeriodFilter] = React.useState('Todos los periodos');
     const [typeFilter, setTypeFilter] = React.useState('All Types');
     const [branchFilter, setBranchFilter] = React.useState('All Branches');
+    const [showModal, setShowModal] = React.useState(false);
+    const [saving, setSaving] = React.useState(false);
+    const [formError, setFormError] = React.useState('');
+    const [formData, setFormData] = React.useState({
+        type: 'INCOME',
+        amount: '',
+        date: '',
+        branchId: '1',
+        category: '',
+        description: '',
+    });
 
     const periodOptions = ['Todos los periodos', ...new Set(balances.map((b) => b.period).filter(Boolean))];
     const typeOptions = ['All Types', ...new Set(movements.map((m) => titleCase(m.type)).filter(Boolean))];
@@ -28,8 +42,12 @@ export const FinancePage = () => {
         return matchesType && matchesBranch && matchesPeriod;
     });
 
-    const totalIncome = movements.filter((m) => m.type === 'INCOME').reduce((acc, m) => acc + Number(m.amount ?? 0), 0);
-    const totalExpenses = movements.filter((m) => m.type === 'EXPENSE').reduce((acc, m) => acc + Number(m.amount ?? 0), 0);
+    const totalIncome = movements
+        .filter((movement) => ['INCOME', 'INGRESO'].includes(movement.type))
+        .reduce((acc, movement) => acc + Number(movement.amount ?? 0), 0);
+    const totalExpenses = movements
+        .filter((movement) => ['EXPENSE', 'EGRESO'].includes(movement.type))
+        .reduce((acc, movement) => acc + Number(movement.amount ?? 0), 0);
 
     const cards = [
         { title: 'Ingresos Totales', value: formatCurrency(totalIncome), meta: 'Movimientos tipo ingreso', tone: 'text-emerald-600' },
@@ -45,63 +63,138 @@ export const FinancePage = () => {
         setOpenMenuId(null);
     };
 
-    const columns = [
-        {
-            header: 'ID',
-            render: (row) => <span className="font-semibold text-slate-900">FIN-{row.id}</span>
-        },
-        {
-            header: 'Tipo',
-            render: (row) => <StatusBadge status={row.type} />
-        },
-        {
-            header: 'Monto',
-            render: (row) => <span className="font-medium">{formatCurrency(row.amount)}</span>
-        },
-        {
-            header: 'Fecha',
-            render: (row) => formatDateTime(row.date)
-        },
-        {
-            header: 'Sucursal',
-            render: (row) => `Sucursal ${row.branchId}`
-        },
-        {
-            header: 'Categoría',
-            render: (row) => titleCase(row.category)
-        },
-        {
-            header: 'Acciones',
-            render: (row) => (
-                <ActionMenu
-                    isOpen={openMenuId === row.id}
-                    onToggle={() => toggleMenu(row.id)}
-                    actions={[
-                        { label: 'Ver Detalle', onClick: () => handleMenuAction('Ver Detalle', row) },
-                        { label: 'Editar', onClick: () => handleMenuAction('Editar', row) },
-                        { label: 'Eliminar', danger: true, onClick: () => handleMenuAction('Eliminar', row) }
-                    ]}
-                />
-            )
-        }
-    ];
+    const updateFormField = (field, value) => {
+        setFormData((current) => ({ ...current, [field]: value }));
+    };
 
-    const newMovementBtn = (
-        <button className="inline-flex items-center rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 transition">
-            <Plus className="mr-2 h-4 w-4" />
-            New Movement
-        </button>
-    );
+    const handleExport = () => {
+        exportWorkbook('finanzas-cordillera', [
+            {
+                name: 'Movimientos',
+                columns: ['ID', 'Tipo', 'Monto', 'Fecha', 'Sucursal', 'Categoria', 'Descripcion'],
+                rows: filteredRows.map((row) => ({
+                    ID: row.id,
+                    Tipo: titleCase(row.type),
+                    Monto: Number(row.amount ?? 0),
+                    Fecha: formatDateTime(row.date),
+                    Sucursal: row.branchId,
+                    Categoria: titleCase(row.category),
+                    Descripcion: row.description,
+                })),
+            },
+            {
+                name: 'Balances',
+                columns: ['Periodo', 'Sucursal', 'Ingresos', 'Gastos', 'Utilidad'],
+                rows: balances.map((row) => ({
+                    Periodo: row.period,
+                    Sucursal: row.branchId,
+                    Ingresos: Number(row.income ?? 0),
+                    Gastos: Number(row.expenses ?? 0),
+                    Utilidad: Number(row.profit ?? 0),
+                })),
+            },
+        ]);
+    };
+
+    const handlePrint = () => {
+        const printWindow = window.open('', '_blank', 'width=1024,height=768');
+        if (!printWindow) {
+            return;
+        }
+
+        const rowsHtml = filteredRows.map((row) => `
+            <tr>
+                <td>FIN-${row.id}</td>
+                <td>${titleCase(row.type)}</td>
+                <td>${formatCurrency(row.amount)}</td>
+                <td>${formatDateTime(row.date)}</td>
+                <td>Sucursal ${row.branchId}</td>
+                <td>${titleCase(row.category)}</td>
+                <td>${row.description || ''}</td>
+            </tr>
+        `).join('');
+
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Finanzas Cordillera</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+                        th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; font-size: 12px; }
+                        th { background: #f8fafc; }
+                    </style>
+                </head>
+                <body>
+                    <h1>Financial Oversight</h1>
+                    <p>Movimientos filtrados: ${filteredRows.length}</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Tipo</th>
+                                <th>Monto</th>
+                                <th>Fecha</th>
+                                <th>Sucursal</th>
+                                <th>Categoria</th>
+                                <th>Descripcion</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rowsHtml}</tbody>
+                    </table>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        printWindow.print();
+    };
+
+    const handleCreateMovement = async () => {
+        setSaving(true);
+        setFormError('');
+        try {
+            await financeApi.createMovement({
+                type: formData.type,
+                amount: Number(formData.amount),
+                date: formData.date || null,
+                branchId: Number(formData.branchId),
+                category: formData.category,
+                description: formData.description,
+            });
+            await refetch();
+            setShowModal(false);
+            setFormData({
+                type: 'INCOME',
+                amount: '',
+                date: '',
+                branchId: '1',
+                category: '',
+                description: '',
+            });
+        } catch (createError) {
+            setFormError(createError.response?.data?.message || 'No se pudo registrar el movimiento.');
+        } finally {
+            setSaving(false);
+        }
+    };
 
     return (
         <div className="min-h-full bg-white p-6 text-slate-900">
             <div className="space-y-6">
-
-                <PageHeader
-                    title="Financial Oversight"
-                    subtitle="Movimientos y balances reales consumidos desde finanzas."
-                    actionButton={newMovementBtn}
-                />
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <h1 className="text-3xl font-bold">Financial Oversight</h1>
+                        <p className="mt-1 text-sm text-slate-500">Movimientos y balances reales consumidos desde finanzas.</p>
+                    </div>
+                    <button
+                        onClick={() => setShowModal(true)}
+                        className="inline-flex items-center self-start rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold text-white shadow-sm"
+                    >
+                        <Plus className="mr-2 h-4 w-4" />
+                        New Movement
+                    </button>
+                </div>
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     {cards.map((card) => (
@@ -116,12 +209,8 @@ export const FinancePage = () => {
                         <Dropdown label="Sucursal" value={branchFilter} options={branchOptions} onChange={setBranchFilter} />
                     </div>
                     <div className="flex gap-3">
-                        <button className="rounded-xl border border-slate-200 p-3 text-slate-600 shadow-sm hover:bg-slate-50">
-                            <Download className="h-4 w-4" />
-                        </button>
-                        <button className="rounded-xl border border-slate-200 p-3 text-slate-600 shadow-sm hover:bg-slate-50">
-                            <Printer className="h-4 w-4" />
-                        </button>
+                        <button onClick={handleExport} className="rounded-xl border border-slate-200 p-3 text-slate-600 shadow-sm transition hover:border-slate-300"><Download className="h-4 w-4" /></button>
+                        <button onClick={handlePrint} className="rounded-xl border border-slate-200 p-3 text-slate-600 shadow-sm transition hover:border-slate-300"><Printer className="h-4 w-4" /></button>
                     </div>
                 </div>
 
@@ -140,6 +229,52 @@ export const FinancePage = () => {
                     />
                 </div>
             </div>
+
+            {showModal ? (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
+                    <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-xl font-bold text-slate-900">Nuevo Movimiento</h2>
+                            <button onClick={() => setShowModal(false)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        {formError ? <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{formError}</div> : null}
+                        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                            <label className="text-sm font-medium text-slate-700">
+                                Tipo
+                                <select value={formData.type} onChange={(event) => updateFormField('type', event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none">
+                                    <option value="INCOME">Income</option>
+                                    <option value="EXPENSE">Expense</option>
+                                </select>
+                            </label>
+                            <label className="text-sm font-medium text-slate-700">
+                                Monto
+                                <input type="number" min="1" value={formData.amount} onChange={(event) => updateFormField('amount', event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none" />
+                            </label>
+                            <label className="text-sm font-medium text-slate-700">
+                                Fecha
+                                <input type="datetime-local" value={formData.date} onChange={(event) => updateFormField('date', event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none" />
+                            </label>
+                            <label className="text-sm font-medium text-slate-700">
+                                Sucursal
+                                <input type="number" min="1" value={formData.branchId} onChange={(event) => updateFormField('branchId', event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none" />
+                            </label>
+                            <label className="text-sm font-medium text-slate-700">
+                                Categoria
+                                <input type="text" value={formData.category} onChange={(event) => updateFormField('category', event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none" />
+                            </label>
+                            <label className="text-sm font-medium text-slate-700 sm:col-span-2">
+                                Descripcion
+                                <textarea value={formData.description} onChange={(event) => updateFormField('description', event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none" rows="3" />
+                            </label>
+                        </div>
+                        <button onClick={handleCreateMovement} disabled={saving} className="mt-6 w-full rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">
+                            {saving ? 'Guardando...' : 'Guardar Movimiento'}
+                        </button>
+                    </div>
+                </div>
+            ) : null}
         </div>
     );
 };
