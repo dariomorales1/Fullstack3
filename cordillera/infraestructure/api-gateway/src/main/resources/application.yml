@@ -13,45 +13,95 @@ spring:
       - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
   cloud:
     gateway:
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials Vary, RETAIN_FIRST
       routes:
         - id: bff-dashboard
+          uri: lb://bff
+          predicates:
+            - Path=/api/dashboard
+        - id: bff-dashboard-nested
           uri: lb://bff
           predicates:
             - Path=/api/dashboard/**
         - id: bff-kpis
           uri: lb://bff
           predicates:
+            - Path=/api/kpis
+        - id: bff-kpis-nested
+          uri: lb://bff
+          predicates:
             - Path=/api/kpis/**
         - id: bff-reports
+          uri: lb://bff
+          predicates:
+            - Path=/api/reports
+        - id: bff-reports-nested
           uri: lb://bff
           predicates:
             - Path=/api/reports/**
         - id: sales-route
           uri: lb://ms-sales
           predicates:
+            - Path=/api/sales
+        - id: sales-route-nested
+          uri: lb://ms-sales
+          predicates:
             - Path=/api/sales/**
         - id: inventory-route
+          uri: lb://ms-inventory
+          predicates:
+            - Path=/api/inventory
+        - id: inventory-route-nested
           uri: lb://ms-inventory
           predicates:
             - Path=/api/inventory/**
         - id: finance-route
           uri: lb://ms-finance
           predicates:
+            - Path=/api/finance
+        - id: finance-route-nested
+          uri: lb://ms-finance
+          predicates:
             - Path=/api/finance/**
         - id: customer-route
+          uri: lb://ms-customer
+          predicates:
+            - Path=/api/customers
+        - id: customer-route-nested
           uri: lb://ms-customer
           predicates:
             - Path=/api/customers/**
         - id: ingestion-route
           uri: lb://ms-data-ingestion
           predicates:
+            - Path=/api/ingestion
+        - id: ingestion-route-nested
+          uri: lb://ms-data-ingestion
+          predicates:
             - Path=/api/ingestion/**
       globalcors:
+        add-to-simple-url-handler-mapping: true
         cors-configurations:
           '[/**]':
-            allowedOriginPatterns: "*"
-            allowedMethods: "*"
-            allowedHeaders: "*"
+            allowed-origin-patterns:
+              - "http://localhost:5173"
+              - "http://localhost:5175"
+              - "http://127.0.0.1:5173"
+              - "http://127.0.0.1:5175"
+            allowed-methods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowed-headers:
+              - "*"
+            exposed-headers:
+              - Authorization
+              - Content-Type
+            allow-credentials: true
+            max-age: 3600
 
 eureka:
   client:

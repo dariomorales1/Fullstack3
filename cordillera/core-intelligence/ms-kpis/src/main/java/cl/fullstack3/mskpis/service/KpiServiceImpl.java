@@ -226,6 +226,16 @@ public class KpiServiceImpl implements IKpiService {
     }
 
     private IndicadorResponseDTO toIndicadorResponse(Indicador i) {
+        Resultado ultimoResultado = resultadoRepository.findFirstByIndicadorIdOrderByIdDesc(i.getId());
+        BigDecimal valorMeta = null;
+
+        if (ultimoResultado != null) {
+            valorMeta = objetivoRepository
+                    .findByIndicadorIdAndPeriodoId(i.getId(), ultimoResultado.getPeriodo().getId())
+                    .map(Objetivo::getValorMeta)
+                    .orElse(null);
+        }
+
         return IndicadorResponseDTO.builder()
                 .id(i.getId())
                 .codigo(i.getCodigo())
@@ -233,6 +243,10 @@ public class KpiServiceImpl implements IKpiService {
                 .tipo(i.getTipo())
                 .unidad(i.getUnidad())
                 .formula(i.getFormula())
+                .valorReal(ultimoResultado != null ? ultimoResultado.getValorReal() : null)
+                .valorMeta(valorMeta)
+                .porcentajeCumplimiento(ultimoResultado != null ? ultimoResultado.getPorcentajeCumplimiento() : null)
+                .estado(ultimoResultado != null ? ultimoResultado.getEstado() : null)
                 .build();
     }
 

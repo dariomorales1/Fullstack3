@@ -251,9 +251,37 @@ services:
     networks:
       - cordillera-net
 
+  ms-auth:
+    build:
+      context: .
+      dockerfile: infraestructure/ms-auth/Dockerfile
+    container_name: ms-auth
+    ports:
+      - "8086:8086"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/db_auth
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_URL=http://eureka-server:8761/eureka/
+      - SPRING_FLYWAY_ENABLED=true
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+      - JWT_SECRET=${JWT_SECRET:-cordillera-secret-key-2026-grupo-fullstack3-muy-segura}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-onboarding@resend.dev}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - cordillera-net
+
 volumes:
   pgdata:
+    name: cordillera-pgdata
 
 networks:
   cordillera-net:
+    name: cordillera-net
     driver: bridge

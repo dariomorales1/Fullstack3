@@ -1,7 +1,8 @@
 import React from 'react';
-import { Plus, Search, SlidersHorizontal, CalendarDays, Eye, Download, RefreshCw, X } from 'lucide-react';
+import { Plus, Search, SlidersHorizontal, RefreshCw, Download, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useReports } from '../hooks/useReports.js';
+import { exportWorkbook } from '../utils/exportExcel.js';
 import { formatCompactNumber, formatDateTime, safeJsonParse, titleCase } from '../utils/formatters.js';
 
 const statusClassMap = {
@@ -37,6 +38,56 @@ export const ReportsPage = () => {
         chartMap[day] += 1;
     });
     const chartData = weekdays.map((day) => ({ day, total: chartMap[day] }));
+
+    const handleExportAll = () => {
+        exportWorkbook('reportes-cordillera', [
+            {
+                name: 'Reportes',
+                columns: ['Titulo', 'Tipo', 'Fecha', 'Estado', 'Parametros'],
+                rows: filteredRows.map((row) => ({
+                    Titulo: row.titulo,
+                    Tipo: titleCase(row.tipo),
+                    Fecha: formatDateTime(row.fechaGeneracion),
+                    Estado: titleCase(row.estado),
+                    Parametros: JSON.stringify(safeJsonParse(row.parametros, {})),
+                })),
+            },
+            {
+                name: 'Tendencia',
+                columns: ['Dia', 'Total'],
+                rows: chartData.map((row) => ({
+                    Dia: row.day,
+                    Total: row.total,
+                })),
+            },
+        ]);
+    };
+
+    const handleExportReport = (report) => {
+        exportWorkbook(`reporte-${report.id}`, [
+            {
+                name: 'Resumen',
+                columns: ['Campo', 'Valor'],
+                rows: [
+                    { Campo: 'ID', Valor: report.id },
+                    { Campo: 'Titulo', Valor: report.titulo },
+                    { Campo: 'Tipo', Valor: titleCase(report.tipo) },
+                    { Campo: 'Fecha Generacion', Valor: formatDateTime(report.fechaGeneracion) },
+                    { Campo: 'Estado', Valor: titleCase(report.estado) },
+                    { Campo: 'Parametros', Valor: JSON.stringify(safeJsonParse(report.parametros, {})) },
+                ],
+            },
+            {
+                name: 'Contenidos',
+                columns: ['Seccion', 'Orden', 'Datos'],
+                rows: (report.contenidos || []).map((item) => ({
+                    Seccion: item.seccion,
+                    Orden: item.orden,
+                    Datos: item.datosJson,
+                })),
+            },
+        ]);
+    };
 
     return (
         <div className="min-h-full bg-white p-6 text-slate-900">
@@ -80,8 +131,16 @@ export const ReportsPage = () => {
                             <SlidersHorizontal className="mr-2 h-4 w-4" />
                             Filtros
                         </button>
+                        <button
+                            onClick={handleExportAll}
+                            disabled={!filteredRows.length}
+                            className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            <Download className="mr-2 h-4 w-4" />
+                            Exportar
+                        </button>
                         <button onClick={refetch} className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm">
-                            <CalendarDays className="mr-2 h-4 w-4" />
+                            <RefreshCw className="mr-2 h-4 w-4" />
                             Recargar
                         </button>
                     </div>
@@ -127,15 +186,9 @@ export const ReportsPage = () => {
                                                 </td>
                                                 <td className="px-4 py-4">
                                                     <div className="flex items-center gap-2">
-                                                        <button
-                                                            onClick={() => alert(`Parametros: ${JSON.stringify(safeJsonParse(row.parametros, {}), null, 2)}`)}
-                                                            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                                                        >
-                                                            <Eye className="h-4 w-4" />
-                                                        </button>
                                                         {row.estado === 'GENERADO' ? (
                                                             <button
-                                                                onClick={() => alert(`Descarga documental aun no implementada para ${row.titulo}`)}
+                                                                onClick={() => handleExportReport(row)}
                                                                 className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
                                                             >
                                                                 <Download className="h-4 w-4" />
@@ -147,14 +200,6 @@ export const ReportsPage = () => {
                                                                 className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
                                                             >
                                                                 <RefreshCw className="h-4 w-4" />
-                                                            </button>
-                                                        ) : null}
-                                                        {row.estado === 'EN_PROCESO' ? (
-                                                            <button
-                                                                onClick={() => alert(`Reporte en proceso: ${row.titulo}`)}
-                                                                className="rounded-lg p-2 text-slate-300"
-                                                            >
-                                                                <Download className="h-4 w-4" />
                                                             </button>
                                                         ) : null}
                                                     </div>
@@ -191,7 +236,7 @@ export const ReportsPage = () => {
                         <p className="mt-3 text-sm text-slate-300">
                             Reportes generados: {reports.filter((row) => row.estado === 'GENERADO').length}. En error: {reports.filter((row) => row.estado === 'ERROR').length}.
                         </p>
-                        <button className="mt-6 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-brand-dark transition hover:bg-slate-100">
+                        <button onClick={() => alert('Configurar alertas PRO pronto estara disponible.')} className="mt-6 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-brand-dark transition hover:bg-slate-100">
                             Configurar Alertas Pro
                         </button>
                     </aside>
