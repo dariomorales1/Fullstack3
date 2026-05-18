@@ -29,7 +29,9 @@ jobs:
 
       - name: Build y test (Maven)
         working-directory: cordillera
-        run: ./mvnw clean verify -B -q
+        run: |
+          chmod +x mvnw
+          ./mvnw clean verify -B -q
 
   # ── Build y Test Frontend ──────────────────────────────────────────────────
   build-frontend:
@@ -43,13 +45,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: npm
-          cache-dependency-path: cordillera/frontend/grupoCordillera/package-lock.json
 
       - name: Install y build
         working-directory: cordillera/frontend/grupoCordillera
         run: |
-          npm ci
+          npm install
           npm run build
 
   # ── Push imágenes a ECR ────────────────────────────────────────────────────
@@ -135,33 +135,33 @@ jobs:
       - name: Configurar SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/reward.pem
-          chmod 600 ~/.ssh/reward.pem
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/cordillera-key.pem
+          chmod 600 ~/.ssh/cordillera-key.pem
           cat >> ~/.ssh/config <<EOF
           Host bastion
             HostName ${{ secrets.EC2_1_HOST }}
             User ec2-user
-            IdentityFile ~/.ssh/reward.pem
+            IdentityFile ~/.ssh/cordillera-key.pem
             StrictHostKeyChecking no
 
           Host ec2-2
             HostName ${{ secrets.EC2_2_HOST }}
             User ec2-user
-            IdentityFile ~/.ssh/reward.pem
+            IdentityFile ~/.ssh/cordillera-key.pem
             ProxyJump bastion
             StrictHostKeyChecking no
 
           Host ec2-3
             HostName ${{ secrets.EC2_3_HOST }}
             User ec2-user
-            IdentityFile ~/.ssh/reward.pem
+            IdentityFile ~/.ssh/cordillera-key.pem
             ProxyJump bastion
             StrictHostKeyChecking no
 
           Host ec2-4
             HostName ${{ secrets.EC2_4_HOST }}
             User ec2-user
-            IdentityFile ~/.ssh/reward.pem
+            IdentityFile ~/.ssh/cordillera-key.pem
             ProxyJump bastion
             StrictHostKeyChecking no
           EOF
