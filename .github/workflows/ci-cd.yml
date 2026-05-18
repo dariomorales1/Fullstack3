@@ -150,10 +150,13 @@ jobs:
           echo "SSH abierto para $RUNNER_IP"
 
       - name: Configurar SSH
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/cordillera-key.pem
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/cordillera-key.pem
           chmod 600 ~/.ssh/cordillera-key.pem
+          ssh-keygen -y -f ~/.ssh/cordillera-key.pem > /dev/null && echo "Clave SSH valida"
           cat >> ~/.ssh/config <<EOF
           Host bastion
             HostName ${{ secrets.EC2_1_HOST }}
