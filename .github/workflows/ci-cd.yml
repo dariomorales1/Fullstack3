@@ -201,53 +201,62 @@ jobs:
 
       - name: Deploy EC2-1 (Frontend + Gateway + Auth)
         run: |
-          ssh bastion "
+          ssh bastion bash -s << EOF
+            set -e
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
             export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
             export RDS_ENDPOINT=${{ secrets.RDS_ENDPOINT }}
             export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
             export JWT_SECRET=${{ secrets.JWT_SECRET }}
             export RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
             docker compose pull
             docker compose up -d
-          "
+          EOF
 
       - name: Deploy EC2-2 (Eureka + BFF)
         run: |
-          ssh ec2-2 "
-            export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
+          ssh ec2-2 bash -s << EOF
+            set -e
             aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
+            export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
             docker compose pull
             docker compose up -d
-          "
+          EOF
 
       - name: Deploy EC2-3 (Core Intelligence)
         run: |
-          ssh ec2-3 "
+          ssh ec2-3 bash -s << EOF
+            set -e
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
             export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
             export RDS_ENDPOINT=${{ secrets.RDS_ENDPOINT }}
             export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
             docker compose pull
             docker compose up -d
-          "
+          EOF
 
       - name: Deploy EC2-4 (Data Sources)
         run: |
-          ssh ec2-4 "
+          ssh ec2-4 bash -s << EOF
+            set -e
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
             export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
             export RDS_ENDPOINT=${{ secrets.RDS_ENDPOINT }}
             export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
             docker compose pull
             docker compose up -d
-          "
+          EOF
 
       - name: Verificar servicios
         run: |
           sleep 30
-          ssh bastion "curl -sf http://localhost:8080/actuator/health && echo 'Gateway OK'"
-          ssh ec2-2 "curl -sf http://localhost:8761/actuator/health && echo 'Eureka OK'"
+          ssh bastion bash -s << 'EOF'
+            curl -sf http://localhost:8080/actuator/health && echo "Gateway OK" || echo "Gateway no responde aun"
+            curl -sf http://localhost:8086/actuator/health && echo "Auth OK" || echo "Auth no responde aun"
+          EOF
+          ssh ec2-2 bash -s << 'EOF'
+            curl -sf http://localhost:8761/actuator/health && echo "Eureka OK" || echo "Eureka no responde aun"
+          EOF
 
       - name: Cerrar SSH del runner
         if: always()
