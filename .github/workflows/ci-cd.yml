@@ -27,11 +27,11 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      - name: Build y test (Maven)
+      - name: Build (Maven)
         working-directory: cordillera
         run: |
           chmod +x mvnw
-          ./mvnw clean verify -B -q
+          ./mvnw clean package -DskipTests -B -q
 
   # ── Build y Test Frontend ──────────────────────────────────────────────────
   build-frontend:

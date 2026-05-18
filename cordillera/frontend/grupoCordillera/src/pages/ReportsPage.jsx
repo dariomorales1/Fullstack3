@@ -6,8 +6,12 @@ import { exportWorkbook } from '../utils/exportExcel.js';
 import { formatCompactNumber, formatDateTime, safeJsonParse, titleCase } from '../utils/formatters.js';
 import { PageHeader } from '../components/layout/PageHeader';
 import { KpiCard } from '../components/ui/KpiCard';
-import { StatusBadge } from '../components/ui/StatusBadge';
-import { DataTable } from '../components/ui/DataTable';
+
+const statusClassMap = {
+    GENERADO: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+    EN_PROCESO: 'bg-blue-50 text-blue-700 ring-blue-200',
+    ERROR: 'bg-red-50 text-red-700 ring-red-200',
+};
 
 export const ReportsPage = () => {
     const { reports, loading, error, refetch, generateReport } = useReports();
@@ -17,20 +21,20 @@ export const ReportsPage = () => {
 
     const cards = [
         { title: 'Total Reportes', value: formatCompactNumber(reports.length), meta: 'Historial disponible', tone: 'text-emerald-600' },
-        { title: 'Completados', value: formatCompactNumber(reports.filter((row) => row.estado === 'GENERADO').length), meta: 'Estado generado', tone: 'text-emerald-600' },
-        { title: 'En Proceso', value: formatCompactNumber(reports.filter((row) => row.estado === 'EN_PROCESO').length), meta: 'Seguimiento activo', tone: 'text-blue-600' },
-        { title: 'Fallidos', value: formatCompactNumber(reports.filter((row) => row.estado === 'ERROR').length), meta: 'Requieren revision', tone: 'text-red-600' }
+        { title: 'Completados', value: formatCompactNumber(reports.filter((r) => r.estado === 'GENERADO').length), meta: 'Estado generado', tone: 'text-emerald-600' },
+        { title: 'En Proceso', value: formatCompactNumber(reports.filter((r) => r.estado === 'EN_PROCESO').length), meta: 'Seguimiento activo', tone: 'text-blue-600' },
+        { title: 'Fallidos', value: formatCompactNumber(reports.filter((r) => r.estado === 'ERROR').length), meta: 'Requieren revision', tone: 'text-red-600' },
     ];
 
-    const filteredRows = reports.filter((row) =>
-        row.titulo?.toLowerCase().includes(searchQuery.toLowerCase())
+    const filteredRows = reports.filter((r) =>
+        r.titulo?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     const weekdays = ['DOM', 'LUN', 'MAR', 'MIE', 'JUE', 'VIE', 'SAB'];
     const chartMap = { DOM: 0, LUN: 0, MAR: 0, MIE: 0, JUE: 0, VIE: 0, SAB: 0 };
-    reports.forEach((report) => {
-        if (!report.fechaGeneracion) return;
-        const day = weekdays[new Date(report.fechaGeneracion).getDay()];
+    reports.forEach((r) => {
+        if (!r.fechaGeneracion) return;
+        const day = weekdays[new Date(r.fechaGeneracion).getDay()];
         chartMap[day] += 1;
     });
     const chartData = weekdays.map((day) => ({ day, total: chartMap[day] }));
@@ -40,21 +44,18 @@ export const ReportsPage = () => {
             {
                 name: 'Reportes',
                 columns: ['Titulo', 'Tipo', 'Fecha', 'Estado', 'Parametros'],
-                rows: filteredRows.map((row) => ({
-                    Titulo: row.titulo,
-                    Tipo: titleCase(row.tipo),
-                    Fecha: formatDateTime(row.fechaGeneracion),
-                    Estado: titleCase(row.estado),
-                    Parametros: JSON.stringify(safeJsonParse(row.parametros, {})),
+                rows: filteredRows.map((r) => ({
+                    Titulo: r.titulo,
+                    Tipo: titleCase(r.tipo),
+                    Fecha: formatDateTime(r.fechaGeneracion),
+                    Estado: titleCase(r.estado),
+                    Parametros: JSON.stringify(safeJsonParse(r.parametros, {})),
                 })),
             },
             {
                 name: 'Tendencia',
                 columns: ['Dia', 'Total'],
-                rows: chartData.map((row) => ({
-                    Dia: row.day,
-                    Total: row.total,
-                })),
+                rows: chartData.map((r) => ({ Dia: r.day, Total: r.total })),
             },
         ]);
     };
@@ -85,6 +86,16 @@ export const ReportsPage = () => {
         ]);
     };
 
+    const generateReportBtn = (
+        <button
+            onClick={() => setShowModal(true)}
+            className="inline-flex items-center rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+        >
+            <Plus className="mr-2 h-4 w-4" />
+            Nuevo Reporte
+        </button>
+    );
+
     return (
         <div className="min-h-full bg-white p-6 text-slate-900">
             <div className="space-y-6">
@@ -108,7 +119,7 @@ export const ReportsPage = () => {
                             className="w-full border-none bg-transparent text-sm text-slate-700 outline-none"
                             placeholder="Buscar reportes"
                             value={searchQuery}
-                            onChange={(event) => setSearchQuery(event.target.value)}
+                            onChange={(e) => setSearchQuery(e.target.value)}
                         />
                     </div>
                     <div className="flex gap-3">
@@ -194,14 +205,7 @@ export const ReportsPage = () => {
                                     </tbody>
                                 </table>
                             </div>
-                        )}
-
-                        <DataTable
-                            columns={columns}
-                            data={filteredRows}
-                            loading={loading}
-                            emptyMessage="No hay reportes para la busqueda actual."
-                        />
+                        </div>
                     </div>
 
                     <div className="space-y-6">
@@ -223,16 +227,20 @@ export const ReportsPage = () => {
                             </div>
                         </div>
 
-                    <aside className="rounded-3xl bg-brand-dark p-6 text-white shadow-sm">
-                        <p className="text-sm uppercase tracking-[0.2em] text-blue-200">Suscripcion Premium</p>
-                        <h2 className="mt-3 text-2xl font-bold">Estados reales del flujo documental.</h2>
-                        <p className="mt-3 text-sm text-slate-300">
-                            Reportes generados: {reports.filter((row) => row.estado === 'GENERADO').length}. En error: {reports.filter((row) => row.estado === 'ERROR').length}.
-                        </p>
-                        <button onClick={() => alert('Configurar alertas PRO pronto estara disponible.')} className="mt-6 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-brand-dark transition hover:bg-slate-100">
-                            Configurar Alertas Pro
-                        </button>
-                    </aside>
+                        <aside className="rounded-3xl bg-brand-dark p-6 text-white shadow-sm">
+                            <p className="text-sm uppercase tracking-[0.2em] text-blue-200">Suscripcion Premium</p>
+                            <h2 className="mt-3 text-2xl font-bold">Estados reales del flujo documental.</h2>
+                            <p className="mt-3 text-sm text-slate-300">
+                                Reportes generados: {reports.filter((r) => r.estado === 'GENERADO').length}. En error: {reports.filter((r) => r.estado === 'ERROR').length}.
+                            </p>
+                            <button
+                                onClick={() => alert('Configurar alertas PRO pronto estara disponible.')}
+                                className="mt-6 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-brand-dark transition hover:bg-slate-100"
+                            >
+                                Configurar Alertas Pro
+                            </button>
+                        </aside>
+                    </div>
                 </div>
 
                 {showModal && (
@@ -249,7 +257,7 @@ export const ReportsPage = () => {
                                     <label className="mb-2 block text-sm font-medium text-slate-700">Tipo de reporte</label>
                                     <select
                                         value={reportType}
-                                        onChange={(event) => setReportType(event.target.value)}
+                                        onChange={(e) => setReportType(e.target.value)}
                                         className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-700 outline-none"
                                     >
                                         <option value="VENTAS_POR_SUCURSAL">Ventas por sucursal</option>
