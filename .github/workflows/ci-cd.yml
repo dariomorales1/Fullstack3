@@ -121,7 +121,7 @@ jobs:
           docker push $sha_image
           echo "Pushed frontend"
 
-  # ── Deploy a EC2 (manual) ──────────────────────────────────────────────────
+  # ── Deploy a EC2 ──────────────────────────────────────────────────────────
   deploy:
     name: Deploy to AWS EC2
     runs-on: ubuntu-latest
@@ -131,6 +131,23 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Abrir SSH para IP del runner
+        run: |
+          RUNNER_IP=$(curl -s https://checkip.amazonaws.com)/32
+          echo "RUNNER_IP=$RUNNER_IP" >> $GITHUB_ENV
+          aws ec2 authorize-security-group-ingress \
+            --group-id sg-0f02d2dd03261cc21 \
+            --protocol tcp --port 22 --cidr $RUNNER_IP \
+            --region ${{ env.AWS_REGION }} || true
+          echo "SSH abierto para $RUNNER_IP"
 
       - name: Configurar SSH
         run: |
@@ -143,6 +160,7 @@ jobs:
             User ec2-user
             IdentityFile ~/.ssh/cordillera-key.pem
             StrictHostKeyChecking no
+            ConnectTimeout 30
 
           Host ec2-2
             HostName ${{ secrets.EC2_2_HOST }}
@@ -227,3 +245,12 @@ jobs:
           sleep 30
           ssh bastion "curl -sf http://localhost:8080/actuator/health && echo 'Gateway OK'"
           ssh ec2-2 "curl -sf http://localhost:8761/actuator/health && echo 'Eureka OK'"
+
+      - name: Cerrar SSH del runner
+        if: always()
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --group-id sg-0f02d2dd03261cc21 \
+            --protocol tcp --port 22 --cidr ${{ env.RUNNER_IP }} \
+            --region ${{ env.AWS_REGION }} || true
+          echo "SSH cerrado para ${{ env.RUNNER_IP }}"
