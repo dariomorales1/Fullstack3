@@ -199,11 +199,18 @@ jobs:
             scp deploy/$folder/docker-compose.yml $ec2:~/docker-compose.yml
           done
 
+      - name: Login ECR en todas las EC2
+        run: |
+          ECR_PASS=$(aws ecr get-login-password --region ${{ env.AWS_REGION }})
+          for ec2 in bastion ec2-2 ec2-3 ec2-4; do
+            echo "$ECR_PASS" | ssh $ec2 "docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}"
+            echo "ECR login OK en $ec2"
+          done
+
       - name: Deploy EC2-1 (Frontend + Gateway + Auth)
         run: |
           ssh bastion bash -s << EOF
             set -e
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
             export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
             export RDS_ENDPOINT=${{ secrets.RDS_ENDPOINT }}
             export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
@@ -217,7 +224,6 @@ jobs:
         run: |
           ssh ec2-2 bash -s << EOF
             set -e
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
             export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
             docker compose pull
             docker compose up -d
@@ -227,7 +233,6 @@ jobs:
         run: |
           ssh ec2-3 bash -s << EOF
             set -e
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
             export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
             export RDS_ENDPOINT=${{ secrets.RDS_ENDPOINT }}
             export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
@@ -239,7 +244,6 @@ jobs:
         run: |
           ssh ec2-4 bash -s << EOF
             set -e
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
             export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
             export RDS_ENDPOINT=${{ secrets.RDS_ENDPOINT }}
             export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
