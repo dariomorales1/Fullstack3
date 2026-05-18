@@ -1,0 +1,42 @@
+# EC2-2 (10.0.2.6 - Privada) - Eureka Server + BFF
+
+services:
+
+  eureka-server:
+    image: ${ECR_REGISTRY}/grupocordillera/eureka-server:latest
+    container_name: eureka-server
+    restart: unless-stopped
+    ports:
+      - "8761:8761"
+    environment:
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+      - JAVA_OPTS=-Xmx128m -Xms64m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8761/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+    networks:
+      - cordillera-net
+
+  bff:
+    image: ${ECR_REGISTRY}/grupocordillera/bff:latest
+    container_name: bff
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    environment:
+      - EUREKA_URL=http://eureka-server:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+      - JAVA_OPTS=-Xmx160m -Xms64m
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - cordillera-net
+
+networks:
+  cordillera-net:
+    name: cordillera-net
+    driver: bridge

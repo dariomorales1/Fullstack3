@@ -1,0 +1,65 @@
+﻿# EC2-3 (10.0.2.118 - Privada) - Core Intelligence Services
+
+services:
+
+  ms-data-ingestion:
+    image: ${ECR_REGISTRY}/grupocordillera/ms-data-ingestion:latest
+    container_name: ms-data-ingestion
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${RDS_ENDPOINT}:5432/db_ingestion
+      - SPRING_DATASOURCE_USERNAME=cordillera_admin
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - EUREKA_URL=http://10.0.2.107:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - SPRING_FLYWAY_ENABLED=true
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=validate
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+      - JAVA_OPTS=-Xmx160m -Xms64m
+    networks:
+      - cordillera-net
+
+  ms-kpis:
+    image: ${ECR_REGISTRY}/grupocordillera/ms-kpis:latest
+    container_name: ms-kpis
+    restart: unless-stopped
+    ports:
+      - "8091:8091"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${RDS_ENDPOINT}:5432/db_kpis
+      - SPRING_DATASOURCE_USERNAME=cordillera_admin
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - EUREKA_URL=http://10.0.2.107:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - SPRING_FLYWAY_ENABLED=true
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=validate
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+      - JAVA_OPTS=-Xmx160m -Xms64m
+    networks:
+      - cordillera-net
+
+  ms-reporting:
+    image: ${ECR_REGISTRY}/grupocordillera/ms-reporting:latest
+    container_name: ms-reporting
+    restart: unless-stopped
+    ports:
+      - "8092:8092"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${RDS_ENDPOINT}:5432/db_reporting
+      - SPRING_DATASOURCE_USERNAME=cordillera_admin
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - EUREKA_URL=http://10.0.2.107:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - SPRING_FLYWAY_ENABLED=true
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=validate
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+      - JAVA_OPTS=-Xmx160m -Xms64m
+    networks:
+      - cordillera-net
+
+networks:
+  cordillera-net:
+    name: cordillera-net
+    driver: bridge

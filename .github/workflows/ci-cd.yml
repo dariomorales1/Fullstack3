@@ -1,0 +1,229 @@
+name: CI/CD Pipeline - Grupo Cordillera
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-2
+  ECR_REGISTRY: 215682485633.dkr.ecr.us-east-2.amazonaws.com
+  ECR_PREFIX: grupocordillera
+
+jobs:
+  # ── Build y Test Backend ───────────────────────────────────────────────────
+  build-backend:
+    name: Build & Test Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build y test (Maven)
+        working-directory: cordillera
+        run: ./mvnw clean verify -B -q
+
+  # ── Build y Test Frontend ──────────────────────────────────────────────────
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: cordillera/frontend/grupoCordillera/package-lock.json
+
+      - name: Install y build
+        working-directory: cordillera/frontend/grupoCordillera
+        run: |
+          npm ci
+          npm run build
+
+  # ── Push imágenes a ECR ────────────────────────────────────────────────────
+  push-images:
+    name: Push Docker Images to ECR
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login a Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build y push Data Sources
+        working-directory: cordillera
+        run: |
+          for svc in ms-sales ms-inventory ms-finance ms-customer; do
+            folder="data-sources/$svc"
+            image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/$svc:latest"
+            sha_image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/$svc:${{ github.sha }}"
+            docker build -f $folder/Dockerfile -t $image -t $sha_image .
+            docker push $image
+            docker push $sha_image
+            echo "Pushed $svc"
+          done
+
+      - name: Build y push Core Intelligence
+        working-directory: cordillera
+        run: |
+          for svc in ms-data-ingestion ms-kpis ms-reporting; do
+            folder="core-intelligence/$svc"
+            image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/$svc:latest"
+            sha_image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/$svc:${{ github.sha }}"
+            docker build -f $folder/Dockerfile -t $image -t $sha_image .
+            docker push $image
+            docker push $sha_image
+            echo "Pushed $svc"
+          done
+
+      - name: Build y push Infraestructura
+        working-directory: cordillera
+        run: |
+          for svc in eureka-server api-gateway bff ms-auth; do
+            folder="infraestructure/$svc"
+            image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/$svc:latest"
+            sha_image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/$svc:${{ github.sha }}"
+            docker build -f $folder/Dockerfile -t $image -t $sha_image .
+            docker push $image
+            docker push $sha_image
+            echo "Pushed $svc"
+          done
+
+      - name: Build y push Frontend
+        working-directory: cordillera/frontend/grupoCordillera
+        run: |
+          image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/frontend:latest"
+          sha_image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/frontend:${{ github.sha }}"
+          docker build -t $image -t $sha_image .
+          docker push $image
+          docker push $sha_image
+          echo "Pushed frontend"
+
+  # ── Deploy a EC2 (manual) ──────────────────────────────────────────────────
+  deploy:
+    name: Deploy to AWS EC2
+    runs-on: ubuntu-latest
+    needs: push-images
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/reward.pem
+          chmod 600 ~/.ssh/reward.pem
+          cat >> ~/.ssh/config <<EOF
+          Host bastion
+            HostName ${{ secrets.EC2_1_HOST }}
+            User ec2-user
+            IdentityFile ~/.ssh/reward.pem
+            StrictHostKeyChecking no
+
+          Host ec2-2
+            HostName ${{ secrets.EC2_2_HOST }}
+            User ec2-user
+            IdentityFile ~/.ssh/reward.pem
+            ProxyJump bastion
+            StrictHostKeyChecking no
+
+          Host ec2-3
+            HostName ${{ secrets.EC2_3_HOST }}
+            User ec2-user
+            IdentityFile ~/.ssh/reward.pem
+            ProxyJump bastion
+            StrictHostKeyChecking no
+
+          Host ec2-4
+            HostName ${{ secrets.EC2_4_HOST }}
+            User ec2-user
+            IdentityFile ~/.ssh/reward.pem
+            ProxyJump bastion
+            StrictHostKeyChecking no
+          EOF
+
+      - name: Copiar docker-compose a cada EC2
+        run: |
+          for ec2 in bastion ec2-2 ec2-3 ec2-4; do
+            case $ec2 in
+              bastion) folder="ec2-1" ;;
+              ec2-2) folder="ec2-2" ;;
+              ec2-3) folder="ec2-3" ;;
+              ec2-4) folder="ec2-4" ;;
+            esac
+            scp deploy/$folder/docker-compose.yml $ec2:~/docker-compose.yml
+          done
+
+      - name: Deploy EC2-1 (Frontend + Gateway + Auth)
+        run: |
+          ssh bastion "
+            export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
+            export RDS_ENDPOINT=${{ secrets.RDS_ENDPOINT }}
+            export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            export JWT_SECRET=${{ secrets.JWT_SECRET }}
+            export RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
+            docker compose pull
+            docker compose up -d
+          "
+
+      - name: Deploy EC2-2 (Eureka + BFF)
+        run: |
+          ssh ec2-2 "
+            export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
+            docker compose pull
+            docker compose up -d
+          "
+
+      - name: Deploy EC2-3 (Core Intelligence)
+        run: |
+          ssh ec2-3 "
+            export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
+            export RDS_ENDPOINT=${{ secrets.RDS_ENDPOINT }}
+            export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
+            docker compose pull
+            docker compose up -d
+          "
+
+      - name: Deploy EC2-4 (Data Sources)
+        run: |
+          ssh ec2-4 "
+            export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
+            export RDS_ENDPOINT=${{ secrets.RDS_ENDPOINT }}
+            export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
+            docker compose pull
+            docker compose up -d
+          "
+
+      - name: Verificar servicios
+        run: |
+          sleep 30
+          ssh bastion "curl -sf http://localhost:8080/actuator/health && echo 'Gateway OK'"
+          ssh ec2-2 "curl -sf http://localhost:8761/actuator/health && echo 'Eureka OK'"

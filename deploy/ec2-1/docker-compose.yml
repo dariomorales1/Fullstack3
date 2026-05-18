@@ -1,0 +1,58 @@
+﻿# EC2-1 (10.0.1.213 - Publica) - Frontend + API Gateway + ms-auth
+# Elastic IP: 3.133.80.5
+# ECR_REGISTRY=215682485633.dkr.ecr.us-east-2.amazonaws.com
+
+services:
+
+  api-gateway:
+    image: ${ECR_REGISTRY}/grupocordillera/api-gateway:latest
+    container_name: api-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - EUREKA_URL=http://10.0.2.107:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+      - JAVA_OPTS=-Xmx160m -Xms64m
+    networks:
+      - cordillera-net
+
+  ms-auth:
+    image: ${ECR_REGISTRY}/grupocordillera/ms-auth:latest
+    container_name: ms-auth
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${RDS_ENDPOINT}:5432/db_auth
+      - SPRING_DATASOURCE_USERNAME=cordillera_admin
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - EUREKA_URL=http://10.0.2.107:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - SPRING_FLYWAY_ENABLED=true
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=validate
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+      - JWT_SECRET=${JWT_SECRET}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-onboarding@resend.dev}
+      - FRONTEND_URL=http://3.133.80.5
+      - JAVA_OPTS=-Xmx160m -Xms64m
+    networks:
+      - cordillera-net
+
+  frontend:
+    image: ${ECR_REGISTRY}/grupocordillera/frontend:latest
+    container_name: frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - cordillera-net
+
+networks:
+  cordillera-net:
+    name: cordillera-net
+    driver: bridge
