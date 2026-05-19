@@ -80,6 +80,10 @@ spring:
           uri: lb://ms-data-ingestion
           predicates:
             - Path=/api/ingestion/**
+        - id: auth-route
+          uri: lb://ms-auth
+          predicates:
+            - Path=/api/auth/**
       globalcors:
         add-to-simple-url-handler-mapping: true
         cors-configurations:
@@ -89,6 +93,8 @@ spring:
               - "http://localhost:5175"
               - "http://127.0.0.1:5173"
               - "http://127.0.0.1:5175"
+              - "http://3.133.80.5"
+              - "http://3.133.80.5:*"
             allowed-methods:
               - GET
               - POST
