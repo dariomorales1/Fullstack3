@@ -1,100 +1,108 @@
 package cl.fullstack3.msreporting.service;
 
-import cl.fullstack3.msreporting.client.IngestionClient;
-import cl.fullstack3.msreporting.client.KpisClient;
 import cl.fullstack3.msreporting.dto.GenerarReporteRequestDTO;
 import cl.fullstack3.msreporting.dto.ReporteResponseDTO;
-import cl.fullstack3.msreporting.factory.BalanceFinancieroGenerator;
-import cl.fullstack3.msreporting.factory.InventarioConsolidadoGenerator;
-import cl.fullstack3.msreporting.factory.KpiMensualGenerator;
+import cl.fullstack3.msreporting.exception.ResourceNotFoundException;
+import cl.fullstack3.msreporting.factory.IReporteGenerador;
 import cl.fullstack3.msreporting.factory.ReporteGeneratorFactory;
-import cl.fullstack3.msreporting.factory.VentasPorSucursalGenerator;
+import cl.fullstack3.msreporting.factory.SeccionDTO;
 import cl.fullstack3.msreporting.model.Reporte;
 import cl.fullstack3.msreporting.repository.IReporteRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 class ReporteServiceImplTest {
 
-    private IReporteRepository reporteRepository;
-    private IngestionClient ingestionClient;
-    private KpisClient kpisClient;
-    private ReporteServiceImpl service;
+    @Mock private IReporteRepository reporteRepository;
+    @Mock private ReporteGeneratorFactory generatorFactory;
+    @Mock private IReporteGenerador reporteGenerador;
+
+    @InjectMocks
+    private ReporteServiceImpl reporteService;
+
+    private Reporte reporte;
 
     @BeforeEach
     void setUp() {
-        reporteRepository = mock(IReporteRepository.class);
-        ingestionClient = mock(IngestionClient.class);
-        kpisClient = mock(KpisClient.class);
-        ObjectMapper om = new ObjectMapper();
-
-        ReporteGeneratorFactory factory = new ReporteGeneratorFactory(List.of(
-                new VentasPorSucursalGenerator(ingestionClient, om),
-                new InventarioConsolidadoGenerator(ingestionClient, om),
-                new KpiMensualGenerator(kpisClient, om),
-                new BalanceFinancieroGenerator(ingestionClient, om)
-        ));
-
-        service = new ReporteServiceImpl(reporteRepository, factory);
+        reporte = new Reporte();
+        reporte.setId(1L);
+        reporte.setTipo("KPI_MENSUAL");
     }
 
     @Test
-    void generate_ventasPorSucursal_persisteReporteGenerado() {
-        String raw = """
-                [{"sourceService":"ms-sales","rawData":"[{\\"sucursalId\\":1,\\"monto\\":500},{\\"sucursalId\\":2,\\"monto\\":300}]","status":"SUCCESS"}]
-                """;
-        when(ingestionClient.fetchDataBySource("ms-sales")).thenReturn(raw);
-        when(reporteRepository.save(any(Reporte.class))).thenAnswer(inv -> {
-            Reporte r = inv.getArgument(0);
-            r.setId(42L);
-            return r;
-        });
-
-        GenerarReporteRequestDTO req = GenerarReporteRequestDTO.builder()
-                .tipo("VENTAS_POR_SUCURSAL")
-                .titulo("Ventas Q1")
-                .parametros("{}")
-                .build();
-
-        ReporteResponseDTO response = service.generate(req);
-
-        assertEquals("GENERADO", response.getEstado());
-        assertEquals("VENTAS_POR_SUCURSAL", response.getTipo());
-        assertEquals("Ventas Q1", response.getTitulo());
-        assertEquals(42L, response.getId());
-        assertFalse(response.getContenidos().isEmpty());
-        verify(ingestionClient).fetchDataBySource("ms-sales");
+    void findAll_ReturnsList() {
+        when(reporteRepository.findAllByOrderByFechaGeneracionDesc()).thenReturn(List.of(reporte));
+        assertFalse(reporteService.findAll().isEmpty());
     }
 
     @Test
-    void generate_kpiMensual_consultaKpisClient() {
-        when(kpisClient.fetchAllKpis()).thenReturn("[{\"codigo\":\"KPI-001\"}]");
-        when(kpisClient.fetchResultadosByPeriodo(3L)).thenReturn("[]");
-        when(reporteRepository.save(any(Reporte.class))).thenAnswer(inv -> inv.getArgument(0));
-
-        GenerarReporteRequestDTO req = GenerarReporteRequestDTO.builder()
-                .tipo("KPI_MENSUAL")
-                .parametros("{\"periodoId\":3}")
-                .build();
-
-        ReporteResponseDTO response = service.generate(req);
-
-        assertEquals("GENERADO", response.getEstado());
-        assertEquals(2, response.getContenidos().size());
-        verify(kpisClient).fetchAllKpis();
-        verify(kpisClient).fetchResultadosByPeriodo(3L);
+    void findById_Exists_ReturnsDto() {
+        when(reporteRepository.findById(1L)).thenReturn(Optional.of(reporte));
+        assertNotNull(reporteService.findById(1L));
     }
 
     @Test
-    void generate_tipoInvalido_lanzaExcepcion() {
-        GenerarReporteRequestDTO req = GenerarReporteRequestDTO.builder().tipo("NO_EXISTE").build();
-        assertThrows(IllegalArgumentException.class, () -> service.generate(req));
+    void findById_NotFound_ThrowsException() {
+        when(reporteRepository.findById(1L)).thenReturn(Optional.empty());
+        assertThrows(ResourceNotFoundException.class, () -> reporteService.findById(1L));
+    }
+
+    @Test
+    void generate_Success_ReturnsGenerated() {
+        GenerarReporteRequestDTO req = new GenerarReporteRequestDTO();
+        req.setTipo("KPI_MENSUAL");
+
+        when(generatorFactory.getGenerador("KPI_MENSUAL")).thenReturn(reporteGenerador);
+        when(reporteGenerador.getTipo()).thenReturn("KPI_MENSUAL");
+        when(reporteGenerador.generar(any())).thenReturn(List.of(new SeccionDTO("sec", "{}", 1)));
+        when(reporteRepository.save(any(Reporte.class))).thenReturn(reporte);
+
+        ReporteResponseDTO res = reporteService.generate(req);
+        assertEquals("KPI_MENSUAL", res.getTipo());
+    }
+
+    @Test
+    void generate_WithException_SetsStatusError() {
+        GenerarReporteRequestDTO req = new GenerarReporteRequestDTO();
+        req.setTipo("KPI_MENSUAL");
+
+        when(generatorFactory.getGenerador("KPI_MENSUAL")).thenReturn(reporteGenerador);
+        when(reporteGenerador.generar(any())).thenThrow(new RuntimeException("Simulated Error"));
+        when(reporteRepository.save(any(Reporte.class))).thenAnswer(i -> i.getArgument(0));
+
+        ReporteResponseDTO res = reporteService.generate(req);
+        assertEquals("ERROR", res.getEstado());
+    }
+
+    @Test
+    void delete_Exists_Deletes() {
+        when(reporteRepository.existsById(1L)).thenReturn(true);
+        doNothing().when(reporteRepository).deleteById(1L);
+        reporteService.delete(1L);
+        verify(reporteRepository).deleteById(1L);
+    }
+
+    @Test
+    void delete_NotFound_ThrowsException() {
+        when(reporteRepository.existsById(1L)).thenReturn(false);
+        assertThrows(ResourceNotFoundException.class, () -> reporteService.delete(1L));
+    }
+
+    @Test
+    void findByTipo_ReturnsList() {
+        when(reporteRepository.findByTipoOrderByFechaGeneracionDesc("KPI_MENSUAL")).thenReturn(List.of(reporte));
+        assertFalse(reporteService.findByTipo("KPI_MENSUAL").isEmpty());
     }
 }
