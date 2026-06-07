@@ -101,19 +101,14 @@ class CustomerServiceTest {
 
     @Test
     void saveCustomer_ExistingRut_ThrowsIllegalArgumentException() {
-        // 1. Creamos un nuevo objeto para asegurar que el RUT es exacto
         Customer existing = new Customer();
         existing.setRut("11.111.111-1");
 
-        // 2. Simulamos la búsqueda
         when(customerRepository.findByRut("11.111.111-1")).thenReturn(Optional.of(existing));
 
-        // 3. Ejecutamos usando el objeto 'customer' que ya tiene el RUT "11.111.111-1" del setUp()
-        assertThrows(IllegalArgumentException.class, () -> {
-            customerService.saveCustomer(customer);
-        });
+        customer.setId(null); // simula cliente nuevo sin id para activar la validacion de RUT duplicado
+        assertThrows(IllegalArgumentException.class, () -> customerService.saveCustomer(customer));
 
-        // 4. Verificamos que NUNCA llamó al método save
         verify(customerRepository, never()).save(any(Customer.class));
     }
 }

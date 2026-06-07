@@ -20,6 +20,9 @@ import cl.fullstack3.mskpis.repository.IResultadoRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -29,32 +32,25 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 class KpiServiceImplTest {
 
-    private IIndicadorRepository indicadorRepository;
-    private IPeriodoRepository periodoRepository;
-    private IObjetivoRepository objetivoRepository;
-    private IResultadoRepository resultadoRepository;
-    private IngestionClient ingestionClient;
-    private KpiServiceImpl service;
+    @Mock private IIndicadorRepository indicadorRepository;
+    @Mock private IPeriodoRepository periodoRepository;
+    @Mock private IObjetivoRepository objetivoRepository;
+    @Mock private IResultadoRepository resultadoRepository;
+    @Mock private IngestionClient ingestionClient;
 
+    private KpiServiceImpl service;
     private Indicador indicador;
 
     @BeforeEach
     void setUp() {
-        indicadorRepository = mock(IIndicadorRepository.class);
-        periodoRepository = mock(IPeriodoRepository.class);
-        objetivoRepository = mock(IObjetivoRepository.class);
-        resultadoRepository = mock(IResultadoRepository.class);
-        ingestionClient = mock(IngestionClient.class);
-
         KpiFactory factory = new KpiFactory(List.of(new KpiPorcentual(), new KpiAcumulado(), new KpiPromedio()));
-
         service = new KpiServiceImpl(
                 indicadorRepository, periodoRepository, objetivoRepository,
                 resultadoRepository, factory, ingestionClient, new ObjectMapper()
         );
-
         indicador = Indicador.builder().id(1L).codigo("KPI-002").tipo("ACUMULADO").build();
     }
 
@@ -94,7 +90,7 @@ class KpiServiceImplTest {
         when(resultadoRepository.findFirstByIndicadorIdOrderByIdDesc(1L)).thenReturn(anterior);
         when(resultadoRepository.save(any(Resultado.class))).thenAnswer(i -> i.getArgument(0));
 
-        String rawJson = "[{\"sourceService\": \"ms-sales\", \"rawData\": \"[{\\\"monto\\\":600}]\"}]";
+        String rawJson = "[{\"sourceService\": \"ms-sales\", \"rawData\": \"[{\\\"monto\\\":900}]\"}]";
         when(ingestionClient.fetchDataBySource("ms-sales")).thenReturn(rawJson);
 
         CalculoDesdeIngestionRequestDTO req = CalculoDesdeIngestionRequestDTO.builder()
@@ -114,7 +110,9 @@ class KpiServiceImplTest {
 
     @Test
     void findResultadosByPeriodo_ReturnsList() {
-        when(resultadoRepository.findByPeriodoId(1L)).thenReturn(List.of(new Resultado()));
+        Periodo periodo = Periodo.builder().id(1L).build();
+        Resultado resultado = Resultado.builder().indicador(indicador).periodo(periodo).build();
+        when(resultadoRepository.findByPeriodoId(1L)).thenReturn(List.of(resultado));
         assertFalse(service.findResultadosByPeriodo(1L).isEmpty());
     }
 }

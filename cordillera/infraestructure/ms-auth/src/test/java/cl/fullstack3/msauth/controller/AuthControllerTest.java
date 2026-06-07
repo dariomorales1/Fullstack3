@@ -3,6 +3,7 @@ package cl.fullstack3.msauth.controller;
 import cl.fullstack3.msauth.dto.AuthResponseDTO;
 import cl.fullstack3.msauth.dto.LoginRequestDTO;
 import cl.fullstack3.msauth.dto.RegisterRequestDTO;
+import cl.fullstack3.msauth.security.JwtAuthFilter;
 import cl.fullstack3.msauth.service.AuthService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,7 @@ class AuthControllerTest {
 
     @Autowired private MockMvc mockMvc;
     @MockBean private AuthService authService;
+    @MockBean private JwtAuthFilter jwtAuthFilter;
     @Autowired private ObjectMapper objectMapper;
 
     @Test
