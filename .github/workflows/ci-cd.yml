@@ -206,10 +206,10 @@ jobs:
           FAILED=0
           for svc in $SERVICES; do
             echo "Esperando estabilidad de $svc..."
-            if timeout 480 aws ecs wait services-stable --cluster ${{ env.ECS_CLUSTER }} --services "$svc" --region ${{ env.AWS_REGION }}; then
+            if timeout 720 aws ecs wait services-stable --cluster ${{ env.ECS_CLUSTER }} --services "$svc" --region ${{ env.AWS_REGION }}; then
               echo "$svc: estable"
             else
-              echo "::error::$svc no llego a estabilizarse en 8 minutos (revisar si el circuit breaker revirtio el deployment)"
+              echo "::error::$svc no llego a estabilizarse en 12 minutos (revisar si el circuit breaker revirtio el deployment)"
               aws ecs describe-services --cluster ${{ env.ECS_CLUSTER }} --services "$svc" --region ${{ env.AWS_REGION }} \
                 --query 'services[0].deployments' --output json
               FAILED=1
