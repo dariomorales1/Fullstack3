@@ -1,0 +1,10 @@
+**/target/
+**/.idea/
+**/.mvn/wrapper/maven-wrapper.jar
+**/*.iml
+**/.git/
+**/node_modules/
+**/dist/
+**/.env
+**/*.log
+cordillera/.claude/

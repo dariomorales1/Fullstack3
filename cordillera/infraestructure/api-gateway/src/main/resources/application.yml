@@ -1,0 +1,103 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  main:
+    web-application-type: reactive
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+      - org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+  cloud:
+    gateway:
+      server:
+        webflux:
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials Vary, RETAIN_FIRST
+          routes:
+            - id: bff-dashboard
+              uri: ${ROUTE_BFF_URI:lb://bff}
+              predicates:
+                - Path=/api/dashboard
+            - id: bff-dashboard-nested
+              uri: ${ROUTE_BFF_URI:lb://bff}
+              predicates:
+                - Path=/api/dashboard/**
+            - id: bff-kpis
+              uri: ${ROUTE_BFF_URI:lb://bff}
+              predicates:
+                - Path=/api/kpis
+            - id: bff-kpis-nested
+              uri: ${ROUTE_BFF_URI:lb://bff}
+              predicates:
+                - Path=/api/kpis/**
+            - id: bff-reports
+              uri: ${ROUTE_BFF_URI:lb://bff}
+              predicates:
+                - Path=/api/reports
+            - id: bff-reports-nested
+              uri: ${ROUTE_BFF_URI:lb://bff}
+              predicates:
+                - Path=/api/reports/**
+            - id: sales-route
+              uri: ${ROUTE_MS_SALES_URI:lb://ms-sales}
+              predicates:
+                - Path=/api/sales
+            - id: sales-route-nested
+              uri: ${ROUTE_MS_SALES_URI:lb://ms-sales}
+              predicates:
+                - Path=/api/sales/**
+            - id: inventory-route
+              uri: ${ROUTE_MS_INVENTORY_URI:lb://ms-inventory}
+              predicates:
+                - Path=/api/inventory
+            - id: inventory-route-nested
+              uri: ${ROUTE_MS_INVENTORY_URI:lb://ms-inventory}
+              predicates:
+                - Path=/api/inventory/**
+            - id: finance-route
+              uri: ${ROUTE_MS_FINANCE_URI:lb://ms-finance}
+              predicates:
+                - Path=/api/finance
+            - id: finance-route-nested
+              uri: ${ROUTE_MS_FINANCE_URI:lb://ms-finance}
+              predicates:
+                - Path=/api/finance/**
+            - id: customer-route
+              uri: ${ROUTE_MS_CUSTOMER_URI:lb://ms-customer}
+              predicates:
+                - Path=/api/customers
+            - id: customer-route-nested
+              uri: ${ROUTE_MS_CUSTOMER_URI:lb://ms-customer}
+              predicates:
+                - Path=/api/customers/**
+            - id: ingestion-route
+              uri: ${ROUTE_MS_DATA_INGESTION_URI:lb://ms-data-ingestion}
+              predicates:
+                - Path=/api/ingestion
+            - id: ingestion-route-nested
+              uri: ${ROUTE_MS_DATA_INGESTION_URI:lb://ms-data-ingestion}
+              predicates:
+                - Path=/api/ingestion/**
+            - id: auth-route
+              uri: ${ROUTE_MS_AUTH_URI:lb://ms-auth}
+              predicates:
+                - Path=/api/auth/**
+
+eureka:
+  client:
+    enabled: ${EUREKA_CLIENT_ENABLED:true}
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+    ip-address: ${EUREKA_INSTANCE_IP_ADDRESS:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: gateway,health

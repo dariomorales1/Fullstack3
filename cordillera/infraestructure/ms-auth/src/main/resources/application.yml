@@ -1,0 +1,51 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: ms-auth
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:5432/db_auth
+    username: ${DB_USER:postgres}
+    password: ${DB_PASS:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: false
+  docker:
+    compose:
+      file: cordillera/infraestructure/ms-auth/docker-compose.yml
+  autoconfigure:
+    exclude:
+      - org.springframework.cloud.netflix.eureka.server.EurekaServerAutoConfiguration
+
+eureka:
+  client:
+    enabled: ${EUREKA_CLIENT_ENABLED:true}
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+    ip-address: ${EUREKA_INSTANCE_IP_ADDRESS:}
+
+jwt:
+  secret: ${JWT_SECRET:cordillera-secret-key-2026-grupo-fullstack3-muy-segura}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
+resend:
+  api-key: ${RESEND_API_KEY:}
+  from-email: ${RESEND_FROM_EMAIL:onboarding@resend.dev}
+
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always

@@ -1,0 +1,88 @@
+﻿# EC2-4 (10.0.2.100 - Privada) - Data Source Services
+
+services:
+
+  ms-sales:
+    image: ${ECR_REGISTRY}/grupocordillera/ms-sales:latest
+    container_name: ms-sales
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${RDS_ENDPOINT}:5432/db_sales
+      - SPRING_DATASOURCE_USERNAME=cordillera_admin
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - EUREKA_URL=http://10.0.2.107:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_IP_ADDRESS=10.0.2.100
+      - SPRING_FLYWAY_ENABLED=true
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+      - JAVA_OPTS=-Xmx96m -Xms48m
+    networks:
+      - cordillera-net
+
+  ms-inventory:
+    image: ${ECR_REGISTRY}/grupocordillera/ms-inventory:latest
+    container_name: ms-inventory
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${RDS_ENDPOINT}:5432/db_inventory
+      - SPRING_DATASOURCE_USERNAME=cordillera_admin
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - EUREKA_URL=http://10.0.2.107:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_IP_ADDRESS=10.0.2.100
+      - SPRING_FLYWAY_ENABLED=true
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+      - JAVA_OPTS=-Xmx96m -Xms48m
+    networks:
+      - cordillera-net
+
+  ms-finance:
+    image: ${ECR_REGISTRY}/grupocordillera/ms-finance:latest
+    container_name: ms-finance
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${RDS_ENDPOINT}:5432/db_finance
+      - SPRING_DATASOURCE_USERNAME=cordillera_admin
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - EUREKA_URL=http://10.0.2.107:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_IP_ADDRESS=10.0.2.100
+      - SPRING_FLYWAY_ENABLED=true
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+      - JAVA_OPTS=-Xmx96m -Xms48m
+    networks:
+      - cordillera-net
+
+  ms-customer:
+    image: ${ECR_REGISTRY}/grupocordillera/ms-customer:latest
+    container_name: ms-customer
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://${RDS_ENDPOINT}:5432/db_customer
+      - SPRING_DATASOURCE_USERNAME=cordillera_admin
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - EUREKA_URL=http://10.0.2.107:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_IP_ADDRESS=10.0.2.100
+      - SPRING_FLYWAY_ENABLED=true
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+      - JAVA_OPTS=-Xmx96m -Xms48m
+    networks:
+      - cordillera-net
+
+networks:
+  cordillera-net:
+    name: cordillera-net
+    driver: bridge

@@ -1,0 +1,319 @@
+services:
+
+  # ── Base de datos ─────────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: cordillera-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./cordillera/init-databases.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cordillera-net
+
+  # ── Registro de servicios ─────────────────────────────────────────────────────
+
+  eureka-server:
+    build:
+      context: ./cordillera
+      dockerfile: infraestructure/eureka-server/Dockerfile
+    container_name: eureka-server
+    restart: unless-stopped
+    ports:
+      - "8761:8761"
+    environment:
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+      - JAVA_OPTS=-Xmx128m -Xms64m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8761/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+    networks:
+      - cordillera-net
+
+  # ── Data Sources ─────────────────────────────────────────────────────────────
+
+  ms-sales:
+    build:
+      context: ./cordillera
+      dockerfile: data-sources/ms-sales/Dockerfile
+    container_name: ms-sales
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/db_sales
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_URL=http://eureka-server:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - SPRING_FLYWAY_ENABLED=true
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - cordillera-net
+
+  ms-inventory:
+    build:
+      context: ./cordillera
+      dockerfile: data-sources/ms-inventory/Dockerfile
+    container_name: ms-inventory
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/db_inventory
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_URL=http://eureka-server:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - SPRING_FLYWAY_ENABLED=true
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - cordillera-net
+
+  ms-finance:
+    build:
+      context: ./cordillera
+      dockerfile: data-sources/ms-finance/Dockerfile
+    container_name: ms-finance
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/db_finance
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_URL=http://eureka-server:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - SPRING_FLYWAY_ENABLED=true
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - cordillera-net
+
+  ms-customer:
+    build:
+      context: ./cordillera
+      dockerfile: data-sources/ms-customer/Dockerfile
+    container_name: ms-customer
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/db_customer
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_URL=http://eureka-server:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - SPRING_FLYWAY_ENABLED=true
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - cordillera-net
+
+  # ── Core Intelligence ─────────────────────────────────────────────────────────
+
+  ms-data-ingestion:
+    build:
+      context: ./cordillera
+      dockerfile: core-intelligence/ms-data-ingestion/Dockerfile
+    container_name: ms-data-ingestion
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/db_ingestion
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_URL=http://eureka-server:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - SPRING_FLYWAY_ENABLED=true
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+      ms-sales:
+        condition: service_started
+      ms-inventory:
+        condition: service_started
+      ms-finance:
+        condition: service_started
+      ms-customer:
+        condition: service_started
+    networks:
+      - cordillera-net
+
+  ms-kpis:
+    build:
+      context: ./cordillera
+      dockerfile: core-intelligence/ms-kpis/Dockerfile
+    container_name: ms-kpis
+    restart: unless-stopped
+    ports:
+      - "8091:8091"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/db_kpis
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_URL=http://eureka-server:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - SPRING_FLYWAY_ENABLED=true
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+      ms-data-ingestion:
+        condition: service_started
+    networks:
+      - cordillera-net
+
+  ms-reporting:
+    build:
+      context: ./cordillera
+      dockerfile: core-intelligence/ms-reporting/Dockerfile
+    container_name: ms-reporting
+    restart: unless-stopped
+    ports:
+      - "8092:8092"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/db_reporting
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_URL=http://eureka-server:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - SPRING_FLYWAY_ENABLED=true
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+      ms-data-ingestion:
+        condition: service_started
+      ms-kpis:
+        condition: service_started
+    networks:
+      - cordillera-net
+
+  # ── BFF ───────────────────────────────────────────────────────────────────────
+
+  api-gateway:
+    build:
+      context: ./cordillera
+      dockerfile: infraestructure/api-gateway/Dockerfile
+    container_name: api-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - EUREKA_URL=http://eureka-server:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - cordillera-net
+
+  bff:
+    build:
+      context: ./cordillera
+      dockerfile: infraestructure/bff/Dockerfile
+    container_name: bff
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    environment:
+      - EUREKA_URL=http://eureka-server:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      ms-kpis:
+        condition: service_started
+      ms-reporting:
+        condition: service_started
+      ms-data-ingestion:
+        condition: service_started
+    networks:
+      - cordillera-net
+
+  ms-auth:
+    build:
+      context: ./cordillera
+      dockerfile: infraestructure/ms-auth/Dockerfile
+    container_name: ms-auth
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/db_auth
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - EUREKA_URL=http://eureka-server:8761/eureka/
+      - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - SPRING_FLYWAY_ENABLED=true
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+      - JWT_SECRET=${JWT_SECRET:-cordillera-secret-key-2026-grupo-fullstack3-muy-segura}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - RESEND_FROM_EMAIL=${RESEND_FROM_EMAIL:-onboarding@resend.dev}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:5173}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - cordillera-net
+
+volumes:
+  pgdata:
+    name: cordillera-pgdata
+
+networks:
+  cordillera-net:
+    name: cordillera-net
+    driver: bridge

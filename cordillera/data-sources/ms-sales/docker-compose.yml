@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  postgres-db:
+    image: postgres:16
+    container_name: postgres-ms-sales
+    environment:
+      POSTGRES_USER: postgres      # <-- Este será tu usuario
+      POSTGRES_PASSWORD: postgres  # <-- Esta será tu contraseña
+      POSTGRES_DB: db_sales        # <-- Esta será tu base de datos
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+
+
+# Revisar este archivo

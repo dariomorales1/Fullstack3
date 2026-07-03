@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ExternalStorageConfigurationManager" enabled="true" />
+  <component name="MavenProjectsManager">
+    <option name="originalFiles">
+      <list>
+        <option value="$PROJECT_DIR$/cordillera/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/sales/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/customer/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/inventory/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/finance/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/ms-sales/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/ms-inventory/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/ms-finance/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/ms-customer/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/data-sources/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/core-intelligence/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/data-sources/ms-sales/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/data-sources/ms-finance/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/data-sources/ms-inventory/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/data-sources/ms-customer/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/core-intelligence/ms-data-ingestion/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/core-intelligence/ms-reporting/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/core-intelligence/ms-kpis/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/infraestructure/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/infraestructure/eureka-server/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/infraestructure/api-gateway/pom.xml" />
+      </list>
+    </option>
+    <option name="ignoredFiles">
+      <set>
+        <option value="$PROJECT_DIR$/cordillera/ms-customer/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/ms-finance/pom.xml" />
+        <option value="$PROJECT_DIR$/cordillera/ms-inventory/pom.xml" />
+      </set>
+    </option>
+  </component>
+  <component name="ProjectRootManager" version="2" languageLevel="JDK_24" default="true" project-jdk-name="24" project-jdk-type="JavaSDK">
+    <output url="file://$PROJECT_DIR$/out" />
+  </component>
+</project>

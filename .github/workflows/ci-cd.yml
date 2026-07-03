@@ -1,0 +1,224 @@
+name: CI/CD Pipeline - Grupo Cordillera
+
+# Migrado a despliegue ECS Fargate (ver DOCUMENTACION_TECNICA.md §12).
+# El trigger de deploy es push directo a master (rama de produccion real del repo): build -> push a ECR -> deploy automatico a ECS.
+# develop queda como rama de desarrollo sin deploy automatico (solo build via pull_request hacia master).
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  AWS_REGION: us-east-2
+  ECR_REGISTRY: 215682485633.dkr.ecr.us-east-2.amazonaws.com
+  ECR_PREFIX: grupocordillera
+  ECS_CLUSTER: cordillera-cluster
+
+jobs:
+  # ── Build y Test Backend ───────────────────────────────────────────────────
+  build-backend:
+    name: Build & Test Backend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build (Maven)
+        working-directory: cordillera
+        run: |
+          chmod +x mvnw
+          ./mvnw clean package -DskipTests -B -q
+
+  # ── Build y Test Frontend ──────────────────────────────────────────────────
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install y build
+        working-directory: cordillera/frontend/grupoCordillera
+        run: |
+          npm install
+          npm run build
+
+  # ── Push imágenes a ECR ────────────────────────────────────────────────────
+  push-images:
+    name: Push Docker Images to ECR
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login a Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build y push Data Sources
+        working-directory: cordillera
+        run: |
+          for svc in ms-sales ms-inventory ms-finance ms-customer; do
+            folder="data-sources/$svc"
+            image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/$svc:latest"
+            sha_image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/$svc:${{ github.sha }}"
+            docker build -f $folder/Dockerfile -t $image -t $sha_image .
+            docker push $image
+            docker push $sha_image
+            echo "Pushed $svc"
+          done
+
+      - name: Build y push Core Intelligence
+        working-directory: cordillera
+        run: |
+          for svc in ms-data-ingestion ms-kpis ms-reporting; do
+            folder="core-intelligence/$svc"
+            image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/$svc:latest"
+            sha_image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/$svc:${{ github.sha }}"
+            docker build -f $folder/Dockerfile -t $image -t $sha_image .
+            docker push $image
+            docker push $sha_image
+            echo "Pushed $svc"
+          done
+
+      - name: Build y push Infraestructura
+        working-directory: cordillera
+        run: |
+          for svc in eureka-server api-gateway bff ms-auth; do
+            folder="infraestructure/$svc"
+            image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/$svc:latest"
+            sha_image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/$svc:${{ github.sha }}"
+            docker build -f $folder/Dockerfile -t $image -t $sha_image .
+            docker push $image
+            docker push $sha_image
+            echo "Pushed $svc"
+          done
+
+      - name: Build y push Frontend
+        working-directory: cordillera/frontend/grupoCordillera
+        run: |
+          image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/frontend:latest"
+          sha_image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/frontend:${{ github.sha }}"
+          docker build -t $image -t $sha_image .
+          docker push $image
+          docker push $sha_image
+          echo "Pushed frontend"
+
+      - name: Build y push Frontend (variante ECS - Service Connect DNS)
+        working-directory: cordillera/frontend/grupoCordillera
+        run: |
+          # Dockerfile.ecs usa nginx.ecs.conf, que apunta a api-gateway.cordillera.local (Service Connect)
+          # en vez de al nombre de contenedor Docker Compose que usa la variante EC2 (Dockerfile/nginx.conf).
+          image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/frontend:ecs"
+          sha_image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/frontend:ecs-${{ github.sha }}"
+          docker build -f Dockerfile.ecs -t $image -t $sha_image .
+          docker push $image
+          docker push $sha_image
+          echo "Pushed frontend (ECS)"
+
+  # ── Deploy a AWS ECS Fargate ─────────────────────────────────────────────────
+  # Reemplaza el job SSH+docker-compose original (ver DOCUMENTACION_TECNICA.md §12).
+  # Actualiza las 12 task definitions con la imagen del sha recien pusheado y
+  # fuerza un nuevo deployment en cada ECS Service. El ECS Deployment Circuit
+  # Breaker (configurado en cada Service, deploymentCircuitBreaker.rollback=true)
+  # es lo que revierte automaticamente si el deployment nuevo no pasa el health check.
+  deploy:
+    name: Deploy to AWS ECS
+    runs-on: ubuntu-latest
+    needs: push-images
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Actualizar task definitions y desplegar los 12 servicios
+        run: |
+          set -e
+          SERVICES="eureka-server api-gateway bff ms-auth ms-sales ms-inventory ms-finance ms-customer ms-data-ingestion ms-kpis ms-reporting frontend"
+
+          for svc in $SERVICES; do
+            echo "=== Desplegando $svc ==="
+            FAMILY="cordillera-$svc"
+
+            # frontend usa la variante ECS-specific (nginx apunta a Service Connect, no a nombre de contenedor Docker Compose)
+            if [ "$svc" = "frontend" ]; then
+              IMAGE_TAG="ecs-${{ github.sha }}"
+            else
+              IMAGE_TAG="${{ github.sha }}"
+            fi
+            NEW_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/$svc:$IMAGE_TAG"
+
+            aws ecs describe-task-definition --task-definition "$FAMILY" --region ${{ env.AWS_REGION }} \
+              --query 'taskDefinition' > task-def.json
+
+            jq --arg IMAGE "$NEW_IMAGE" \
+              '.containerDefinitions[0].image = $IMAGE
+               | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+              task-def.json > new-task-def.json
+
+            NEW_REVISION=$(aws ecs register-task-definition \
+              --cli-input-json file://new-task-def.json \
+              --region ${{ env.AWS_REGION }} \
+              --query 'taskDefinition.revision' --output text)
+
+            aws ecs update-service \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --service "$svc" \
+              --task-definition "${FAMILY}:${NEW_REVISION}" \
+              --force-new-deployment \
+              --region ${{ env.AWS_REGION }} > /dev/null
+
+            echo "$svc -> revision $NEW_REVISION"
+          done
+
+      - name: Esperar a que los 12 servicios queden estables (o falla si el circuit breaker revirtio)
+        run: |
+          SERVICES="eureka-server api-gateway bff ms-auth ms-sales ms-inventory ms-finance ms-customer ms-data-ingestion ms-kpis ms-reporting frontend"
+          FAILED=0
+          for svc in $SERVICES; do
+            echo "Esperando estabilidad de $svc..."
+            if timeout 480 aws ecs wait services-stable --cluster ${{ env.ECS_CLUSTER }} --services "$svc" --region ${{ env.AWS_REGION }}; then
+              echo "$svc: estable"
+            else
+              echo "::error::$svc no llego a estabilizarse en 8 minutos (revisar si el circuit breaker revirtio el deployment)"
+              aws ecs describe-services --cluster ${{ env.ECS_CLUSTER }} --services "$svc" --region ${{ env.AWS_REGION }} \
+                --query 'services[0].deployments' --output json
+              FAILED=1
+            fi
+          done
+          exit $FAILED
+
+      - name: Verificar frontend via ALB
+        if: success()
+        run: |
+          curl -sf http://cordillera-alb-1476500823.us-east-2.elb.amazonaws.com/ > /dev/null \
+            && echo "Frontend OK via ALB" || echo "::warning::Frontend no responde aun via ALB"

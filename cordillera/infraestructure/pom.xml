@@ -18,9 +18,9 @@
 
     <modules>
         <module>api-gateway</module>
-        <module>aws</module>
         <module>bff</module>
         <module>eureka-server</module>
+        <module>ms-auth</module>
     </modules>
     <licenses>
         <license/>

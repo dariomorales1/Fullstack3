@@ -1,0 +1,47 @@
+{
+  "family": "cordillera-api-gateway",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::215682485633:role/cordilleraEcsTaskExecutionRole",
+  "runtimePlatform": { "cpuArchitecture": "X86_64", "operatingSystemFamily": "LINUX" },
+  "containerDefinitions": [
+    {
+      "name": "api-gateway",
+      "image": "215682485633.dkr.ecr.us-east-2.amazonaws.com/grupocordillera/api-gateway:latest",
+      "essential": true,
+      "portMappings": [
+        { "containerPort": 8080, "protocol": "tcp", "name": "api-gateway-8080", "appProtocol": "http" }
+      ],
+      "environment": [
+        { "name": "JAVA_OPTS", "value": "-Xmx768m -Xms64m" },
+        { "name": "EUREKA_CLIENT_ENABLED", "value": "false" },
+        { "name": "ROUTE_BFF_URI", "value": "http://bff.cordillera-dns.local:8085" },
+        { "name": "ROUTE_MS_SALES_URI", "value": "http://ms-sales.cordillera-dns.local:8081" },
+        { "name": "ROUTE_MS_INVENTORY_URI", "value": "http://ms-inventory.cordillera-dns.local:8082" },
+        { "name": "ROUTE_MS_FINANCE_URI", "value": "http://ms-finance.cordillera-dns.local:8083" },
+        { "name": "ROUTE_MS_CUSTOMER_URI", "value": "http://ms-customer.cordillera-dns.local:8084" },
+        { "name": "ROUTE_MS_DATA_INGESTION_URI", "value": "http://ms-data-ingestion.cordillera-dns.local:8090" },
+        { "name": "ROUTE_MS_AUTH_URI", "value": "http://ms-auth.cordillera-dns.local:8086" },
+        { "name": "SPRING_DOCKER_COMPOSE_ENABLED", "value": "false" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/cordillera/api-gateway",
+          "awslogs-region": "us-east-2",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}
