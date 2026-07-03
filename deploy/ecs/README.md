@@ -68,7 +68,7 @@ Políticas de autoscaling (Target Tracking, `scaleOutCooldown=60s`, `scaleInCool
 
 ## Cómo desplegar
 
-El único flujo soportado es **CI/CD automático** vía GitHub Actions (`.github/workflows/ci-cd.yml`), disparado por push a `main`:
+El único flujo soportado es **CI/CD automático** vía GitHub Actions (`.github/workflows/ci-cd.yml`), disparado por push a `master` (rama de producción real del repo):
 
 1. Build + push de las 12 imágenes a ECR (`grupocordillera/<servicio>:latest`, y `frontend:ecs`/`frontend:ecs-<sha>` con `Dockerfile.ecs` específico para el entorno ECS).
 2. Por cada uno de los 12 servicios: `describe-task-definition` de la revisión actual → swap de la imagen con `jq` → `register-task-definition` (nueva revisión) → `update-service --force-new-deployment`.

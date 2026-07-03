@@ -170,7 +170,7 @@ ssh -i ~/.ssh/cordillera-key.pem -J ec2-user@3.148.98.28 ec2-user@10.0.2.107   #
 
 Archivo: `Fullstack3/.github/workflows/ci-cd.yml`
 
-**Disparadores:** `push` a la rama `develop` (despliega) o `pull_request` hacia `main` (solo build, no despliega).
+**Disparadores (actualizado en la migración a ECS, ver §12):** `push` a la rama `master` (build + push a ECR + deploy a ECS) o `pull_request` hacia `master` (solo build, no despliega). El diagrama de abajo describe el flujo histórico previo a la migración (deploy por SSH a EC2 en `develop`); el flujo vigente hoy es el de §12.
 
 ```
 push a develop
