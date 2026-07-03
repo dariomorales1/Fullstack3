@@ -28,7 +28,11 @@ services:
     environment:
       - EUREKA_URL=http://eureka-server:8761/eureka/
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_IP_ADDRESS=10.0.2.107
       - SPRING_DOCKER_COMPOSE_ENABLED=false
+      - MS_KPIS_URL=http://10.0.2.118:8091
+      - MS_REPORTING_URL=http://10.0.2.118:8092
+      - MS_DATA_INGESTION_URL=http://10.0.2.118:8090
       - JAVA_OPTS=-Xmx160m -Xms64m
     depends_on:
       eureka-server:

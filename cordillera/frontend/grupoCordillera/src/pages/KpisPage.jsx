@@ -93,12 +93,42 @@ export const KpisPage = () => {
         setShowAdvancedFilters(false);
     };
 
+    const columns = [
+        { header: 'Codigo', accessor: 'codigo' },
+        { header: 'Nombre', accessor: 'nombre' },
+        { header: 'Tipo', render: (row) => titleCase(row.tipo) },
+        { header: 'Unidad', render: (row) => row.unidad || 'N/D' },
+        { header: 'Valor Real', render: (row) => row.resultado?.valorReal ?? row.valorReal ?? '-' },
+        { header: 'Meta', render: (row) => row.valorMeta ?? '-' },
+        {
+            header: 'Cumplimiento',
+            render: (row) => (row.resultado?.porcentajeCumplimiento != null ? `${row.resultado.porcentajeCumplimiento}%` : '-')
+        },
+        {
+            header: 'Estado',
+            render: (row) => (row.resultado?.estado
+                ? <StatusBadge status={row.resultado.estado} />
+                : <span className="text-slate-400">Sin resultado</span>)
+        },
+    ];
+
+    const refreshBtn = (
+        <button
+            onClick={handleRefresh}
+            disabled={calculating}
+            className="inline-flex items-center rounded-xl bg-brand-accent px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
+        >
+            <TrendingUp className="mr-2 h-4 w-4" />
+            {calculating ? 'Calculando...' : 'Recalcular KPIs'}
+        </button>
+    );
+
     return (
         <div className="min-h-full bg-white p-6 text-slate-900">
             <div className="space-y-6">
 
                 <PageHeader
-                    title={CustomTitle}
+                    title="Indicadores KPI"
                     subtitle="Vista consolidada de indicadores consumida desde ms-kpis."
                     actionButton={refreshBtn}
                 />

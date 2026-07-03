@@ -1,0 +1,43 @@
+{
+  "family": "cordillera-bff",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::215682485633:role/cordilleraEcsTaskExecutionRole",
+  "runtimePlatform": { "cpuArchitecture": "X86_64", "operatingSystemFamily": "LINUX" },
+  "containerDefinitions": [
+    {
+      "name": "bff",
+      "image": "215682485633.dkr.ecr.us-east-2.amazonaws.com/grupocordillera/bff:latest",
+      "essential": true,
+      "portMappings": [
+        { "containerPort": 8085, "protocol": "tcp", "name": "bff-8085", "appProtocol": "http" }
+      ],
+      "environment": [
+        { "name": "JAVA_OPTS", "value": "-Xmx768m -Xms64m" },
+        { "name": "EUREKA_CLIENT_ENABLED", "value": "false" },
+        { "name": "MS_KPIS_URL", "value": "http://ms-kpis.cordillera-dns.local:8091" },
+        { "name": "MS_REPORTING_URL", "value": "http://ms-reporting.cordillera-dns.local:8092" },
+        { "name": "MS_DATA_INGESTION_URL", "value": "http://ms-data-ingestion.cordillera-dns.local:8090" },
+        { "name": "SPRING_DOCKER_COMPOSE_ENABLED", "value": "false" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/cordillera/bff",
+          "awslogs-region": "us-east-2",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "wget -qO- http://localhost:8085/actuator/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}

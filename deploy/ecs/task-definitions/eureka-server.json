@@ -1,0 +1,39 @@
+{
+  "family": "cordillera-eureka-server",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::215682485633:role/cordilleraEcsTaskExecutionRole",
+  "runtimePlatform": { "cpuArchitecture": "X86_64", "operatingSystemFamily": "LINUX" },
+  "containerDefinitions": [
+    {
+      "name": "eureka-server",
+      "image": "215682485633.dkr.ecr.us-east-2.amazonaws.com/grupocordillera/eureka-server:latest",
+      "essential": true,
+      "portMappings": [
+        { "containerPort": 8761, "protocol": "tcp", "name": "eureka-server-8761", "appProtocol": "http" }
+      ],
+      "environment": [
+        { "name": "JAVA_OPTS", "value": "-Xmx768m -Xms64m" },
+        { "name": "EUREKA_CLIENT_ENABLED", "value": "false" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/cordillera/eureka-server",
+          "awslogs-region": "us-east-2",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "wget -qO- http://localhost:8761/actuator/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}

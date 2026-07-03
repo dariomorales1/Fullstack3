@@ -68,6 +68,29 @@ export const SalesPage = () => {
         return matchesStatus && matchesBranch && matchesDate;
     });
 
+    const columns = [
+        { header: 'ID', render: (row) => <span className="font-semibold text-slate-900">V-{row.id}</span> },
+        { header: 'Fecha', render: (row) => formatDate(row.date) },
+        { header: 'Cliente', render: (row) => `Cliente #${row.customerId ?? 'N/D'}` },
+        { header: 'Sucursal', render: (row) => `Sucursal ${row.branchId}` },
+        { header: 'Monto', render: (row) => formatCurrency(row.amount) },
+        { header: 'Metodo de Pago', render: (row) => titleCase(row.paymentMethod) },
+        { header: 'Estado', render: (row) => <StatusBadge status={row.status} /> },
+        {
+            header: '',
+            render: (row) => (
+                <ActionMenu
+                    isOpen={openMenuId === row.id}
+                    onToggle={() => toggleMenu(row.id)}
+                    actions={[
+                        { label: 'Ver detalle', onClick: () => handleMenuAction('Ver', row) },
+                        { label: 'Anular', onClick: () => handleMenuAction('Anular', row), danger: true },
+                    ]}
+                />
+            )
+        }
+    ];
+
     const toggleMenu = (id) => setOpenMenuId((current) => (current === id ? null : id));
 
     const handleMenuAction = (action, row) => {

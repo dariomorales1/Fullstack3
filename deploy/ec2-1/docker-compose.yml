@@ -13,6 +13,7 @@ services:
     environment:
       - EUREKA_URL=http://10.0.2.107:8761/eureka/
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_IP_ADDRESS=10.0.1.58
       - SPRING_DOCKER_COMPOSE_ENABLED=false
       - JAVA_OPTS=-Xmx160m -Xms64m
     networks:
@@ -30,6 +31,7 @@ services:
       - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
       - EUREKA_URL=http://10.0.2.107:8761/eureka/
       - EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+      - EUREKA_INSTANCE_IP_ADDRESS=10.0.1.58
       - SPRING_FLYWAY_ENABLED=true
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_DOCKER_COMPOSE_ENABLED=false

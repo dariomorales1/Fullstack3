@@ -1,7 +1,7 @@
 package cl.fullstack3.bff.client;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -11,13 +11,17 @@ import java.util.Collections;
 import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ReportingClient {
 
-    private static final String REPORTING_BASE_URL = "http://host.docker.internal:8092/api/reports";
-
+    private final String REPORTING_BASE_URL;
     private final WebClient.Builder webClientBuilder;
+
+    public ReportingClient(WebClient.Builder webClientBuilder,
+                            @Value("${services.ms-reporting.url}") String reportingServiceUrl) {
+        this.webClientBuilder = webClientBuilder;
+        this.REPORTING_BASE_URL = reportingServiceUrl + "/api/reports";
+    }
 
     public Mono<Object> fetchReports() {
         return webClientBuilder.build()

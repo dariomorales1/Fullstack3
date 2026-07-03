@@ -13,10 +13,23 @@ spring:
       - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
 eureka:
   client:
+    enabled: ${EUREKA_CLIENT_ENABLED:true}
     service-url:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
   instance:
     prefer-ip-address: true
+    ip-address: ${EUREKA_INSTANCE_IP_ADDRESS:}
+
+# URLs directas para las llamadas de bff a los microservicios de core-intelligence.
+# Antes estaban hardcodeadas a host.docker.internal (nunca funciono en EC2 ni en ECS).
+# Default de desarrollo local; en EC2/ECS se sobreescriben via env var.
+services:
+  ms-kpis:
+    url: ${MS_KPIS_URL:http://localhost:8091}
+  ms-reporting:
+    url: ${MS_REPORTING_URL:http://localhost:8092}
+  ms-data-ingestion:
+    url: ${MS_DATA_INGESTION_URL:http://localhost:8090}
 
 resilience4j:
   circuitbreaker:
