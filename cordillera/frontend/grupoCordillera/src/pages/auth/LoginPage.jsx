@@ -53,8 +53,8 @@ export const LoginPage = () => {
                         <div className="w-12 h-12 bg-slate-900 rounded-xl mx-auto flex items-center justify-center mb-4 shadow-sm">
                             <Mountain className="text-white" size={24} />
                         </div>
-                        <h2 className="text-xl font-bold text-slate-900">Grupo Cordillera</h2>
-                        <p className="text-sm text-slate-500 mt-1">Management Portal</p>
+                        <h2 className="text-xl font-bold text-slate-900">Bienvenido a Grupo Cordillera</h2>
+                        <p className="text-sm text-slate-500 mt-1">Portal Interno</p>
                     </div>
 
                     {/* Formulario */}
