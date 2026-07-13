@@ -1,7 +1,7 @@
 package cl.fullstack3.bff.client;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -10,13 +10,17 @@ import java.time.Duration;
 import java.util.Map;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class IngestionClient {
 
-    private static final String INGESTION_BASE_URL = "http://host.docker.internal:8090/api/ingestion";
-
+    private final String INGESTION_BASE_URL;
     private final WebClient.Builder webClientBuilder;
+
+    public IngestionClient(WebClient.Builder webClientBuilder,
+                            @Value("${services.ms-data-ingestion.url}") String ingestionServiceUrl) {
+        this.webClientBuilder = webClientBuilder;
+        this.INGESTION_BASE_URL = ingestionServiceUrl + "/api/ingestion";
+    }
 
     public Mono<Object> fetchStatus() {
         return webClientBuilder.build()

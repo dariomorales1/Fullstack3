@@ -1,8 +1,8 @@
 package cl.fullstack3.bff.client;
 
 import cl.fullstack3.bff.dto.KpiDTO;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -13,13 +13,17 @@ import java.util.Collections;
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class KpisClient {
 
-    private static final String KPIS_BASE_URL = "http://host.docker.internal:8091/api/kpis";
-
+    private final String KPIS_BASE_URL;
     private final WebClient.Builder webClientBuilder;
+
+    public KpisClient(WebClient.Builder webClientBuilder,
+                       @Value("${services.ms-kpis.url}") String kpisServiceUrl) {
+        this.webClientBuilder = webClientBuilder;
+        this.KPIS_BASE_URL = kpisServiceUrl + "/api/kpis";
+    }
 
     public Mono<List<KpiDTO>> fetchAllKpis() {
         return webClientBuilder.build()

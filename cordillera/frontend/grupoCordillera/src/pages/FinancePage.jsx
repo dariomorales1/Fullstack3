@@ -1,10 +1,12 @@
 import React from 'react';
 import { Plus, Download, Printer, MoreHorizontal, X } from 'lucide-react';
 import { Dropdown } from '../components/ui/Dropdown';
+import { KpiCard } from '../components/ui/KpiCard';
 import { useFinance } from '../hooks/useFinance.js';
 import { financeApi } from '../api/financeApi.js';
 import { exportWorkbook } from '../utils/exportExcel.js';
 import { formatCompactNumber, formatCurrency, formatDateTime, titleCase } from '../utils/formatters.js';
+import { DataTable } from '../components/ui/DataTable';
 
 const typeClassMap = {
     INCOME: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
@@ -54,6 +56,23 @@ export const FinancePage = () => {
         { title: 'Gastos Totales', value: formatCurrency(totalExpenses), meta: 'Movimientos tipo egreso', tone: 'text-rose-600' },
         { title: 'Flujo Neto', value: formatCurrency(totalIncome - totalExpenses), meta: 'Ingreso menos gasto', tone: 'text-slate-500' },
         { title: 'Balances Disponibles', value: formatCompactNumber(balances.length), meta: 'Periodos consolidados', tone: 'text-emerald-600' }
+    ];
+
+    const columns = [
+        { header: 'ID', render: (row) => <span className="font-semibold text-slate-900">FIN-{row.id}</span> },
+        {
+            header: 'Tipo',
+            render: (row) => (
+                <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ${typeClassMap[row.type] || 'bg-slate-100 text-slate-600 ring-slate-200'}`}>
+                    {titleCase(row.type)}
+                </span>
+            )
+        },
+        { header: 'Monto', render: (row) => formatCurrency(row.amount) },
+        { header: 'Fecha', render: (row) => formatDateTime(row.date) },
+        { header: 'Sucursal', render: (row) => `Sucursal ${row.branchId}` },
+        { header: 'Categoria', render: (row) => titleCase(row.category) },
+        { header: 'Descripcion', accessor: 'description' },
     ];
 
     const toggleMenu = (id) => setOpenMenuId((current) => (current === id ? null : id));

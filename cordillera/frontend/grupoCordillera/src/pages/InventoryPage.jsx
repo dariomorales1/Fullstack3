@@ -124,6 +124,18 @@ export const InventoryPage = () => {
         ]);
     };
 
+    const columns = [
+        { header: 'SKU', accessor: 'sku' },
+        { header: 'Nombre', accessor: 'name' },
+        { header: 'Categoria', render: (row) => titleCase(row.category) },
+        { header: 'Precio', render: (row) => formatCurrency(row.price) },
+        { header: 'Stock Total', render: (row) => formatCompactNumber(row.totalStock) },
+        { header: 'Stock Minimo', render: (row) => formatCompactNumber(row.minimumStock) },
+        { header: 'Estado', render: (row) => <StatusBadge status={row.status} /> },
+        { header: 'Activo', render: (row) => (row.active ? 'Si' : 'No') },
+        { header: 'Actualizado', render: (row) => formatDateTime(row.lastUpdated) },
+    ];
+
     const updateFormField = (field, value) => {
         setFormData((current) => ({ ...current, [field]: value }));
     };

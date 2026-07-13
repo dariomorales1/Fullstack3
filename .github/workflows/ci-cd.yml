@@ -1,15 +1,19 @@
 name: CI/CD Pipeline - Grupo Cordillera
 
+# Migrado a despliegue ECS Fargate (ver DOCUMENTACION_TECNICA.md §12).
+# El trigger de deploy es push directo a master (rama de produccion real del repo): build -> push a ECR -> deploy automatico a ECS.
+# develop queda como rama de desarrollo sin deploy automatico (solo build via pull_request hacia master).
 on:
   push:
-    branches: [develop]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 env:
   AWS_REGION: us-east-2
   ECR_REGISTRY: 215682485633.dkr.ecr.us-east-2.amazonaws.com
   ECR_PREFIX: grupocordillera
+  ECS_CLUSTER: cordillera-cluster
 
 jobs:
   # ── Build y Test Backend ───────────────────────────────────────────────────
@@ -57,7 +61,7 @@ jobs:
     name: Push Docker Images to ECR
     runs-on: ubuntu-latest
     needs: [build-backend, build-frontend]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -121,12 +125,29 @@ jobs:
           docker push $sha_image
           echo "Pushed frontend"
 
-  # ── Deploy a EC2 ──────────────────────────────────────────────────────────
+      - name: Build y push Frontend (variante ECS - Service Connect DNS)
+        working-directory: cordillera/frontend/grupoCordillera
+        run: |
+          # Dockerfile.ecs usa nginx.ecs.conf, que apunta a api-gateway.cordillera.local (Service Connect)
+          # en vez de al nombre de contenedor Docker Compose que usa la variante EC2 (Dockerfile/nginx.conf).
+          image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/frontend:ecs"
+          sha_image="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/frontend:ecs-${{ github.sha }}"
+          docker build -f Dockerfile.ecs -t $image -t $sha_image .
+          docker push $image
+          docker push $sha_image
+          echo "Pushed frontend (ECS)"
+
+  # ── Deploy a AWS ECS Fargate ─────────────────────────────────────────────────
+  # Reemplaza el job SSH+docker-compose original (ver DOCUMENTACION_TECNICA.md §12).
+  # Actualiza las 12 task definitions con la imagen del sha recien pusheado y
+  # fuerza un nuevo deployment en cada ECS Service. El ECS Deployment Circuit
+  # Breaker (configurado en cada Service, deploymentCircuitBreaker.rollback=true)
+  # es lo que revierte automaticamente si el deployment nuevo no pasa el health check.
   deploy:
-    name: Deploy to AWS EC2
+    name: Deploy to AWS ECS
     runs-on: ubuntu-latest
     needs: push-images
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     environment: production
     steps:
       - name: Checkout
@@ -139,134 +160,65 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Abrir SSH para IP del runner
+      - name: Actualizar task definitions y desplegar los 12 servicios
         run: |
-          RUNNER_IP=$(curl -s https://checkip.amazonaws.com)/32
-          echo "RUNNER_IP=$RUNNER_IP" >> $GITHUB_ENV
-          aws ec2 authorize-security-group-ingress \
-            --group-id sg-0f02d2dd03261cc21 \
-            --protocol tcp --port 22 --cidr $RUNNER_IP \
-            --region ${{ env.AWS_REGION }} || true
-          echo "SSH abierto para $RUNNER_IP"
+          set -e
+          SERVICES="eureka-server api-gateway bff ms-auth ms-sales ms-inventory ms-finance ms-customer ms-data-ingestion ms-kpis ms-reporting frontend"
 
-      - name: Configurar SSH
-        env:
-          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/cordillera-key.pem
-          chmod 600 ~/.ssh/cordillera-key.pem
-          ssh-keygen -y -f ~/.ssh/cordillera-key.pem > /dev/null && echo "Clave SSH valida"
-          cat >> ~/.ssh/config <<EOF
-          Host bastion
-            HostName ${{ secrets.EC2_1_HOST }}
-            User ec2-user
-            IdentityFile ~/.ssh/cordillera-key.pem
-            StrictHostKeyChecking no
-            ConnectTimeout 30
+          for svc in $SERVICES; do
+            echo "=== Desplegando $svc ==="
+            FAMILY="cordillera-$svc"
 
-          Host ec2-2
-            HostName ${{ secrets.EC2_2_HOST }}
-            User ec2-user
-            IdentityFile ~/.ssh/cordillera-key.pem
-            ProxyJump bastion
-            StrictHostKeyChecking no
+            # frontend usa la variante ECS-specific (nginx apunta a Service Connect, no a nombre de contenedor Docker Compose)
+            if [ "$svc" = "frontend" ]; then
+              IMAGE_TAG="ecs-${{ github.sha }}"
+            else
+              IMAGE_TAG="${{ github.sha }}"
+            fi
+            NEW_IMAGE="${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/$svc:$IMAGE_TAG"
 
-          Host ec2-3
-            HostName ${{ secrets.EC2_3_HOST }}
-            User ec2-user
-            IdentityFile ~/.ssh/cordillera-key.pem
-            ProxyJump bastion
-            StrictHostKeyChecking no
+            aws ecs describe-task-definition --task-definition "$FAMILY" --region ${{ env.AWS_REGION }} \
+              --query 'taskDefinition' > task-def.json
 
-          Host ec2-4
-            HostName ${{ secrets.EC2_4_HOST }}
-            User ec2-user
-            IdentityFile ~/.ssh/cordillera-key.pem
-            ProxyJump bastion
-            StrictHostKeyChecking no
-          EOF
+            jq --arg IMAGE "$NEW_IMAGE" \
+              '.containerDefinitions[0].image = $IMAGE
+               | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+              task-def.json > new-task-def.json
 
-      - name: Copiar docker-compose a cada EC2
-        run: |
-          for ec2 in bastion ec2-2 ec2-3 ec2-4; do
-            case $ec2 in
-              bastion) folder="ec2-1" ;;
-              ec2-2) folder="ec2-2" ;;
-              ec2-3) folder="ec2-3" ;;
-              ec2-4) folder="ec2-4" ;;
-            esac
-            scp deploy/$folder/docker-compose.yml $ec2:~/docker-compose.yml
+            NEW_REVISION=$(aws ecs register-task-definition \
+              --cli-input-json file://new-task-def.json \
+              --region ${{ env.AWS_REGION }} \
+              --query 'taskDefinition.revision' --output text)
+
+            aws ecs update-service \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --service "$svc" \
+              --task-definition "${FAMILY}:${NEW_REVISION}" \
+              --force-new-deployment \
+              --region ${{ env.AWS_REGION }} > /dev/null
+
+            echo "$svc -> revision $NEW_REVISION"
           done
 
-      - name: Login ECR en todas las EC2
+      - name: Esperar a que los 12 servicios queden estables (o falla si el circuit breaker revirtio)
         run: |
-          ECR_PASS=$(aws ecr get-login-password --region ${{ env.AWS_REGION }})
-          for ec2 in bastion ec2-2 ec2-3 ec2-4; do
-            echo "$ECR_PASS" | ssh $ec2 "docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}"
-            echo "ECR login OK en $ec2"
+          SERVICES="eureka-server api-gateway bff ms-auth ms-sales ms-inventory ms-finance ms-customer ms-data-ingestion ms-kpis ms-reporting frontend"
+          FAILED=0
+          for svc in $SERVICES; do
+            echo "Esperando estabilidad de $svc..."
+            if timeout 720 aws ecs wait services-stable --cluster ${{ env.ECS_CLUSTER }} --services "$svc" --region ${{ env.AWS_REGION }}; then
+              echo "$svc: estable"
+            else
+              echo "::error::$svc no llego a estabilizarse en 12 minutos (revisar si el circuit breaker revirtio el deployment)"
+              aws ecs describe-services --cluster ${{ env.ECS_CLUSTER }} --services "$svc" --region ${{ env.AWS_REGION }} \
+                --query 'services[0].deployments' --output json
+              FAILED=1
+            fi
           done
+          exit $FAILED
 
-      - name: Deploy EC2-1 (Frontend + Gateway + Auth)
+      - name: Verificar frontend via ALB
+        if: success()
         run: |
-          ssh bastion bash -s << EOF
-            set -e
-            export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
-            export RDS_ENDPOINT=${{ secrets.RDS_ENDPOINT }}
-            export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            export JWT_SECRET=${{ secrets.JWT_SECRET }}
-            export RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
-            docker compose pull
-            docker compose up -d
-          EOF
-
-      - name: Deploy EC2-2 (Eureka + BFF)
-        run: |
-          ssh ec2-2 bash -s << EOF
-            set -e
-            export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
-            docker compose pull
-            docker compose up -d
-          EOF
-
-      - name: Deploy EC2-3 (Core Intelligence)
-        run: |
-          ssh ec2-3 bash -s << EOF
-            set -e
-            export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
-            export RDS_ENDPOINT=${{ secrets.RDS_ENDPOINT }}
-            export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            docker compose pull
-            docker compose up -d
-          EOF
-
-      - name: Deploy EC2-4 (Data Sources)
-        run: |
-          ssh ec2-4 bash -s << EOF
-            set -e
-            export ECR_REGISTRY=${{ env.ECR_REGISTRY }}
-            export RDS_ENDPOINT=${{ secrets.RDS_ENDPOINT }}
-            export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-            docker compose pull
-            docker compose up -d
-          EOF
-
-      - name: Verificar servicios
-        run: |
-          sleep 30
-          ssh bastion bash -s << 'EOF'
-            curl -sf http://localhost:8080/actuator/health && echo "Gateway OK" || echo "Gateway no responde aun"
-            curl -sf http://localhost:8086/actuator/health && echo "Auth OK" || echo "Auth no responde aun"
-          EOF
-          ssh ec2-2 bash -s << 'EOF'
-            curl -sf http://localhost:8761/actuator/health && echo "Eureka OK" || echo "Eureka no responde aun"
-          EOF
-
-      - name: Cerrar SSH del runner
-        if: always()
-        run: |
-          aws ec2 revoke-security-group-ingress \
-            --group-id sg-0f02d2dd03261cc21 \
-            --protocol tcp --port 22 --cidr ${{ env.RUNNER_IP }} \
-            --region ${{ env.AWS_REGION }} || true
-          echo "SSH cerrado para ${{ env.RUNNER_IP }}"
+          curl -sf http://cordillera-alb-1476500823.us-east-2.elb.amazonaws.com/ > /dev/null \
+            && echo "Frontend OK via ALB" || echo "::warning::Frontend no responde aun via ALB"

@@ -1,0 +1,47 @@
+{
+  "family": "cordillera-ms-inventory",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::215682485633:role/cordilleraEcsTaskExecutionRole",
+  "runtimePlatform": { "cpuArchitecture": "X86_64", "operatingSystemFamily": "LINUX" },
+  "containerDefinitions": [
+    {
+      "name": "ms-inventory",
+      "image": "215682485633.dkr.ecr.us-east-2.amazonaws.com/grupocordillera/ms-inventory:latest",
+      "essential": true,
+      "portMappings": [
+        { "containerPort": 8082, "protocol": "tcp", "name": "ms-inventory-8082", "appProtocol": "http" }
+      ],
+      "environment": [
+        { "name": "JAVA_OPTS", "value": "-Xmx384m -Xms64m" },
+        { "name": "EUREKA_CLIENT_ENABLED", "value": "false" },
+        { "name": "SPRING_DATASOURCE_URL", "value": "jdbc:postgresql://cordillera-rds.cfmsu2gu68ai.us-east-2.rds.amazonaws.com:5432/db_inventory" },
+        { "name": "SPRING_DATASOURCE_USERNAME", "value": "cordillera_admin" },
+        { "name": "SPRING_FLYWAY_ENABLED", "value": "true" },
+        { "name": "SPRING_JPA_HIBERNATE_DDL_AUTO", "value": "update" },
+        { "name": "SPRING_DOCKER_COMPOSE_ENABLED", "value": "false" }
+      ],
+      "secrets": [
+        { "name": "SPRING_DATASOURCE_PASSWORD", "valueFrom": "arn:aws:secretsmanager:us-east-2:215682485633:secret:cordillera/db-password-DwMDdj" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/cordillera/ms-inventory",
+          "awslogs-region": "us-east-2",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}
