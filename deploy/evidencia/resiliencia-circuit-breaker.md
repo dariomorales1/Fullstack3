@@ -89,3 +89,37 @@ Esto es el comportamiento esperado y deseable del *rolling update* de ECS: la re
 | Imagen de despliegue inexistente | La revisión estable nunca se interrumpió (cero downtime); el circuit breaker automático no alcanzó a marcar `FAILED` dentro de la ventana de prueba (~11 min) con `desiredCount=1` | Se forzó el revert manual a la revisión 5 para no extender la prueba indefinidamente |
 
 Ambos escenarios confirman que el sistema tolera fallos sin afectar a los usuarios finales; la diferencia práctica es que el auto-healing de tareas caídas es inmediato y automático, mientras que el rollback de un *despliegue* con imagen inexistente, en un servicio de una sola tarea, puede requerir más tiempo del disponible en esta ventana de prueba para que el circuit breaker actúe por sí solo — algo a tener en cuenta al presentar la demo: mostrar el mecanismo (`deploymentCircuitBreaker.rollback=true` está configurado en los 12 servicios) y su efecto garantizado (cero downtime), sin afirmar que el rollback fue 100% automático en esta corrida puntual.
+
+## Parte 4 — Repetición 2026-07-03 (Fase C del prompt de validación de pipeline): esta vez el rollback SÍ fue 100% automático
+
+**Objetivo:** repetir la Parte 2 con el pipeline y las task definitions ya corregidas (fix de HikariCP pool size, ver `deployment_lessons.md` punto 24) para confirmar si el circuit breaker seguía sin disparar dentro de ~11 minutos, o si el comportamiento cambió.
+
+**Comandos ejecutados** (mismo patrón que Parte 2, contra `ms-reporting`, servicio no crítico fuera del camino de la demo):
+
+```bash
+aws ecs register-task-definition --cli-input-json file://ms-reporting-broken-taskdef.json --region us-east-2
+# -> revisión 9, image: .../grupocordillera/ms-reporting:tag-inexistente-prueba-c (tag inexistente en ECR)
+
+aws ecs update-service --cluster cordillera-cluster --service ms-reporting \
+  --task-definition cordillera-ms-reporting:9 --force-new-deployment --region us-east-2
+```
+
+**Timeline real observado** (polling cada ~20-22s sobre `services[0].deployments`):
+
+| Elapsed | Evento |
+|---|---|
+| 00m00s | Deployment de la revisión 9 (imagen rota) creado, `rolloutState=IN_PROGRESS`, `runningCount=0` |
+| 02m34s | `failedTasks=1` (primer intento de pull fallido) |
+| 04m46s | `failedTasks=2` |
+| 11m00s | `failedTasks=3` |
+| **11m44s** | **`rolloutState=IN_PROGRESS` en revisión 8, `runningCount=1`, `reason="ECS deployment circuit breaker: rolling back to deploymentId ecs-svc/7246342417563559064"`** — el circuit breaker detectó los fallos y revirtió solo, sin ningún comando manual |
+| ~13m30s | Deployment de la revisión 9 pasa a `status=DRAINING`, `rolloutState=FAILED`, `reason="ECS deployment circuit breaker: tasks failed to start."` |
+
+**A diferencia de la Parte 2 (2026-07-02), esta vez el rollback automático SÍ se confirmó**, sin intervención manual — el umbral interno de fallos que necesita ECS para declarar el deployment como `FAILED` y revertir (con `desiredCount=1`) se alcanzó en **11m44s**, apenas por encima de la ventana de ~11 minutos observada en la corrida anterior (que se cortó justo antes de llegar a ese umbral). Esto sugiere que el comportamiento nunca fue "no funciona", sino que el umbral de fallos acumulados (`failedTasks=3` en este caso) tarda ese orden de magnitud en alcanzarse con una sola tarea deseada — la Parte 2 simplemente no esperó lo suficiente antes de forzar el revert manual.
+
+**Verificado tras el rollback:**
+- `ms-reporting`: `runningCount=1`, `taskDefinition=cordillera-ms-reporting:8` (imagen correcta), sin intervención manual.
+- ALB frontend (`/`) y `/api/kpis` respondieron `HTTP 200` durante toda la prueba — cero downtime observado en el resto del sistema, igual que en la Parte 2.
+- La revisión rota (9) quedó registrada como evidencia histórica, no se usa en ningún servicio activo.
+
+**Conclusión actualizada para la demo/pauta:** el `deploymentCircuitBreaker.rollback=true` **sí revierte automáticamente sin intervención humana**, pero con `desiredCount=1` el proceso completo (detección de fallos + rollback) toma **~12 minutos**. Si se muestra esto en vivo, hay que dimensionar el tiempo de la demo en consecuencia (no es instantáneo).

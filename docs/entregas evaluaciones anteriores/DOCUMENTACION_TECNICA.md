@@ -1,6 +1,8 @@
 # Documentación Técnica — Grupo Cordillera (DSY1106)
 
-> Última actualización: 2026-07-02. Este documento refleja el **estado real verificado** del código y la infraestructura en AWS a esa fecha (no el `BACKEND_SPEC.md` original, que quedó desactualizado). Si algo diverge de lo aquí escrito, confiar en el código/infraestructura real y actualizar este archivo.
+> Última actualización: 2026-07-03. Este documento refleja el **estado real verificado** del código y la infraestructura en AWS a esa fecha (no el `BACKEND_SPEC.md` original, que quedó desactualizado). Si algo diverge de lo aquí escrito, confiar en el código/infraestructura real y actualizar este archivo.
+>
+> **⚠️ A partir del 2026-07-03, toda la infraestructura de cómputo (EC2, ECS, RDS) fue DETENIDA (no eliminada) para no seguir consumiendo créditos AWS mientras no se necesita, hasta el examen (~2026-07-10). Ver §13 para el estado exacto y el procedimiento de reactivación antes de usar cualquier URL/IP de este documento.**
 
 ## 1. Resumen del proyecto
 
@@ -376,12 +378,14 @@ Al migrar `bff` a URLs directas se descubrió que `KpisClient.java`, `IngestionC
 
 `k6` (50 VUs, 3 min sostenidos) contra `/api/kpis` vía ALB: **3.664 requests, 0.00% de error**, p95 5.45s. `ms-kpis` escaló automáticamente de 1→2 tareas en 34s tras iniciar el monitoreo (Target Tracking CPU 60%), y siguió escalando hasta el máximo configurado (`maxCapacity=4`) incluso *después* de terminada la carga real — atribuido al pico de CPU real del cold-start de JVM (JIT, class loading, Hibernate/Flyway) en las tareas nuevas, retroalimentando la métrica de CPU promedio del servicio. Detalle completo, incluyendo por qué este hallazgo no buscado es evidencia positiva (el techo `maxCapacity` contuvo el sobreescalado sin intervención), en `deploy/evidencia/resumen-autoscaling.md`.
 
-### 12.5 Prueba de resiliencia (Fase 10)
+### 12.5 Prueba de resiliencia (Fase 10, repetida 2026-07-03)
 
 Dos escenarios probados sobre `ms-reporting`, documentados con timeline real de eventos en `deploy/evidencia/resiliencia-circuit-breaker.md`:
 
 1. **Caída de una tarea** (health check fallido): ECS repuso la tarea automáticamente en ~3-4 minutos, sin intervención manual — el `desiredCount=1` declarativo del servicio es la garantía.
-2. **Imagen de despliegue inexistente** (`ms-reporting:imagen-rota-test`, tag deliberadamente roto): la revisión estable **nunca dejó de servir tráfico** (cero downtime confirmado), pero el `deploymentCircuitBreaker` automático **no llegó a marcar el deployment como `FAILED` dentro de los ~11 minutos observados** con `desiredCount=1` — se forzó el revert manual a la revisión anterior. Se documenta este resultado tal cual ocurrió, sin afirmar un rollback 100% automático que no se confirmó en esta corrida.
+2. **Imagen de despliegue inexistente** (tag deliberadamente roto): probado dos veces.
+   - **2026-07-02:** la revisión estable nunca dejó de servir tráfico (cero downtime), pero el `deploymentCircuitBreaker` no llegó a marcar el deployment como `FAILED` dentro de los ~11 minutos observados — se forzó el revert manual, sin confirmar el rollback automático.
+   - **2026-07-03 (repetición, "Fase C" del prompt de validación de pipeline):** mismo procedimiento contra `ms-reporting:tag-inexistente-prueba-c` (revisión 9). Esta vez **el circuit breaker sí revirtió automáticamente, sin ningún comando manual, en 11m44s**, quedando `rolloutState=COMPLETED` en la revisión buena a los ~13m50s totales. Conclusión: el rollback automático **funciona**; la corrida anterior simplemente se detuvo manualmente justo antes de alcanzar el umbral interno de fallos (`failedTasks=3`) que ECS necesita para declarar el deployment `FAILED` con `desiredCount=1`. El proceso completo toma **~12 minutos**, no es instantáneo. Ver "Parte 4" en `deploy/evidencia/resiliencia-circuit-breaker.md` para el timeline minuto a minuto.
 
 ### 12.6 Checklist final — pauta IE9 vs. evidencia
 
@@ -392,9 +396,63 @@ Dos escenarios probados sobre `ms-reporting`, documentados con timeline real de 
 | Descubrimiento de servicios / comunicación interna | ECS Service Connect, namespace `cordillera-dns.local` (§12.2) |
 | Autoscaling automático | Target Tracking en `api-gateway`/`bff`/`ms-kpis`, evidencia real en `deploy/evidencia/resumen-autoscaling.md` (§12.4) |
 | Prueba de carga | `k6`, 50 VUs/3min, 0% error — `deploy/evidencia/resumen-autoscaling.md` |
-| Prueba de resiliencia / recuperación ante fallos | `deploy/evidencia/resiliencia-circuit-breaker.md` (§12.5) — auto-healing confirmado, circuit breaker de despliegue documentado honestamente (manual en esta corrida) |
+| Prueba de resiliencia / recuperación ante fallos | `deploy/evidencia/resiliencia-circuit-breaker.md` (§12.5) — auto-healing confirmado; circuit breaker de despliegue confirmado 100% automático en la repetición del 2026-07-03 (~12 min) |
 | Observabilidad / monitoreo | CloudWatch Logs por servicio (`/ecs/cordillera/<servicio>`), dashboard `cordillera-dashboard`, Container Insights habilitado |
 | CI/CD actualizado al nuevo entorno | `.github/workflows/ci-cd.yml` — build+push ECR, `register-task-definition`+`update-service` por servicio |
 | Gestión segura de credenciales | AWS Secrets Manager (RDS, JWT, Resend) en las task definitions |
 | Continuidad del entorno anterior durante la migración | Entorno EC2 (`deploy/ec2-{1,2,3,4}`) intacto durante toda la migración, sin downtime del sistema en producción |
 | Decisiones de arquitectura justificadas | §12.2 (abandono de Eureka), §12.3 (bug de URLs hardcodeadas), `deploy/ecs/infra-reuse-evaluation.md` (qué infraestructura EC2 se reutilizó) |
+
+## 13. Estado operativo 2026-07-03: pausa de infraestructura hasta el examen (~2026-07-10)
+
+### 13.1 Contexto y decisión
+
+Con ECS validado end-to-end (§12) y el pipeline confirmado disparando deploy real a `master` (ver `deploy/evidencia/` y la corrida de Fase B), el usuario decidió **no eliminar nada** de lo creado (ni EC2 ni ECS ni RDS ni ALB) pero **detener todo el cómputo en ejecución** para no seguir consumiendo créditos AWS mientras no hay actividad, ya que el examen es recién en ~1 semana. La cuenta AWS **no es un sandbox de AWS Academy** (usuario con `AdministratorAccess` permanente, facturación real continua — ver `deploy/ecs/infra-reuse-evaluation.md`), así que el costo de dejar todo corriendo una semana sin uso no se justifica.
+
+### 13.2 Hallazgo relevante antes de apagar: ECS depende de EC2-1 para salida a internet
+
+Las tareas Fargate corren en la subred privada `subnet-0c37930ff9a14e070`, cuya tabla de rutas (`rtb-03c7217fc4d221f6d`) sigue apuntando el tráfico saliente hacia **EC2-1 como NAT instance manual** — no se creó NAT Gateway administrado ni VPC Interface Endpoints para ECR/Secrets Manager/CloudWatch Logs (decisión de ahorro documentada en `deploy/ecs/infra-reuse-evaluation.md`, línea "NAT Gateway"). Esto significa que, **mientras haya tareas ECS corriendo**, detener EC2-1 rompería su capacidad de pull de imágenes nuevas, fetch de secrets y logging (aunque el tráfico ya en curso, servido vía ALB/Service Connect dentro de la VPC, seguiría funcionando hasta el primer crash o redeploy).
+
+**Esto deja de ser un problema en este escenario específico**, porque el plan es llevar `desiredCount` de los 12 servicios ECS a **0** antes o junto con detener EC2 — si no hay ninguna tarea corriendo ni intentando arrancar, la dependencia de NAT es irrelevante. El orden recomendado es: primero escalar ECS a 0, después detener las 4 EC2.
+
+### 13.3 Qué se detuvo y cómo (comandos ejecutados)
+
+| Recurso | Acción | Comando base | Reversible |
+|---|---|---|---|
+| 12 servicios ECS (`cordillera-cluster`) | `desiredCount` → 0 | `aws ecs update-service --cluster cordillera-cluster --service <svc> --desired-count 0 --region us-east-2` | Sí — volver a `--desired-count 1` (o el valor de autoscaling `min` original) |
+| 4 instancias EC2 | Detenidas (stop, **no terminate**) | `aws ec2 stop-instances --instance-ids i-05d008dd7dd644af4 i-0ca0519f821489086 i-03a2918d757fc81bb i-0fdd7a0e7d39e6d9f --region us-east-2` | Sí — `aws ec2 start-instances` con los mismos IDs |
+| RDS `cordillera-rds` | Detenida (stop) | `aws rds stop-db-instance --db-instance-identifier cordillera-rds --region us-east-2` | Sí — `aws rds start-db-instance`, pero **AWS reinicia automáticamente una instancia RDS detenida después de 7 días** (no se puede dejar detenida indefinidamente); si el examen es más allá de esa ventana, revisar si RDS ya se reinició solo antes de asumir que sigue detenida |
+| Elastic IP `3.148.98.28` (EC2-1) | Ver nota abajo | — | — |
+| ALB `cordillera-alb`, Target Groups, Cluster ECS, Task Definitions, Service Connect namespace, ECR, Secrets Manager | **Sin cambios** — no se detienen ni eliminan (no existe forma de "pausar" un ALB sin eliminarlo; su costo base ~$16-20/mes + Secrets Manager ~$1.20/mes continúan mientras no se decida eliminarlos) | — | — |
+
+> **Nota sobre la Elastic IP — ACTUALIZADO:** inicialmente se mantuvo `3.148.98.28` asociada (ver historial abajo), pero el usuario confirmó explícitamente **liberarla** el 2026-07-04 para cortar el costo de ~$0.005/hora (~$3.6-4/mes) de una IP sin uso mientras EC2-1 está detenida. Ejecutado: `aws ec2 release-address --allocation-id eipalloc-0b29c090f76b92d60 --region us-east-2`. **`3.148.98.28` ya NO existe en la cuenta** — al reactivar EC2-1 se debe asignar una IP nueva (`aws ec2 allocate-address` + `aws ec2 associate-address`) y **actualizar obligatoriamente**: `CorsConfig.java` (`allowedOriginPatterns`) en `api-gateway`, el secret `EC2_1_HOST` en GitHub Actions, y este documento — de lo contrario el login/CORS del entorno EC2 no funcionará con la IP nueva.
+>
+> **Nota adicional descubierta:** además de esta EIP, la cuenta tiene otras 2 direcciones (`18.227.131.172`, `3.140.116.26`) asociadas a las ENIs del ALB `cordillera-alb` (gestionadas por `amazon-elb`, `Requester: amazon-elb`) — **no son liberables** sin eliminar el ALB completo (contradice la instrucción de no eliminar nada). Cobran igual (~$0.005/hora cada una, ~$7.2/mes las dos) mientras el ALB exista, independiente de si hay tareas ECS corriendo. Es un costo fijo inherente a mantener el ALB provisionado, no relacionado con el apagado de cómputo.
+
+### 13.5 Confirmación final del apagado (2026-07-03, ejecutado y verificado)
+
+| Recurso | Estado final verificado |
+|---|---|
+| 12 servicios ECS | `desiredCount=0`, `runningCount=0` en los 12 (confirmado vía `describe-services`) |
+| 4 instancias EC2 (`i-05d008dd7dd644af4`, `i-0ca0519f821489086`, `i-03a2918d757fc81bb`, `i-0fdd7a0e7d39e6d9f`) | `stopped` (confirmado vía `describe-instances`) |
+| RDS `cordillera-rds` | `stopped` (confirmado vía `describe-db-instances`, tardó ~9 minutos en detenerse tras el comando) |
+| ALB, Target Groups, Cluster ECS, Task Definitions, ECR, Secrets Manager, EIP `3.148.98.28` | Sin cambios, tal como estaban |
+
+**Nada quedó accesible mientras dure la pausa** — ni `http://3.148.98.28` (EC2 detenida) ni `http://cordillera-alb-1476500823.us-east-2.elb.amazonaws.com` (ECS con 0 tareas, el ALB devolverá error de "no healthy targets"). Usar el procedimiento de §13.4 para reactivar antes del examen.
+
+### 13.4 Procedimiento de reactivación antes del examen
+
+Orden recomendado (inverso al apagado, para evitar que ECS intente arrancar tareas sin que EC2-1/NAT esté listo primero, aunque en este caso ECS ya no depende de EC2 para nada si ambos estaban en 0/detenido):
+
+1. `aws rds start-db-instance --db-instance-identifier cordillera-rds --region us-east-2` y esperar `aws rds wait db-instance-available` (toma varios minutos).
+2. `aws ec2 start-instances --instance-ids i-05d008dd7dd644af4 i-0ca0519f821489086 i-03a2918d757fc81bb i-0fdd7a0e7d39e6d9f --region us-east-2` y esperar que las 4 pasen a `running` (`aws ec2 wait instance-status-ok`).
+3. **La EIP `3.148.98.28` ya no existe (liberada 2026-07-04).** Asignar una nueva y asociarla a EC2-1 (`i-05d008dd7dd644af4`):
+   ```bash
+   NEW_ALLOC=$(aws ec2 allocate-address --domain vpc --region us-east-2 --query 'AllocationId' --output text)
+   aws ec2 associate-address --instance-id i-05d008dd7dd644af4 --allocation-id $NEW_ALLOC --region us-east-2
+   aws ec2 describe-addresses --allocation-ids $NEW_ALLOC --region us-east-2 --query 'Addresses[0].PublicIp' --output text
+   ```
+   Con la IP nueva obtenida, **actualizar antes de probar el login**: `allowedOriginPatterns` en `CorsConfig.java` (`api-gateway`), el secret `EC2_1_HOST` en GitHub Actions, y este documento (§4, §5.2, §5.6). Sin este paso, el frontend del entorno EC2 dará error de CORS al intentar loguearse.
+4. Verificar Docker/contenedores en las 4 EC2 vía SSH (`docker ps`) — **no asumir que un `docker start` automático ocurre solo**; puede requerir `docker compose up -d` manual si los contenedores no tienen `restart: unless-stopped` o si Docker no arrancó solo tras el `stop`/`start` de la instancia.
+5. Para ECS: `aws ecs update-service --cluster cordillera-cluster --service <svc> --desired-count 1 --region us-east-2` por cada uno de los 12 servicios (o el valor `min` de autoscaling en `api-gateway`/`bff`/`ms-kpis`), luego `aws ecs wait services-stable`.
+6. Verificar ambos entornos: `curl http://<IP-EC2-1>/` (frontend EC2) y `curl http://cordillera-alb-1476500823.us-east-2.elb.amazonaws.com/` (frontend ECS) antes de dar por lista la demo/examen.
