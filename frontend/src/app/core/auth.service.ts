@@ -24,6 +24,27 @@ export class AuthService {
     return APP_CONFIG.authMode;
   }
 
+  /**
+   * Se ejecuta al arrancar la app (APP_INITIALIZER).
+   * En modo msal procesa el regreso de la redireccion de Microsoft:
+   * recupera la cuenta, obtiene el token y deja la sesion lista antes de enrutar.
+   */
+  async init(): Promise<void> {
+    if (this.mode !== 'msal') return;
+    const msal = await this.ensureMsal();
+    try {
+      const result = await msal.handleRedirectPromise();
+      const cuenta = result?.account ?? msal.getActiveAccount() ?? msal.getAllAccounts()[0];
+      if (cuenta) {
+        msal.setActiveAccount(cuenta);
+        const token = await msal.acquireTokenSilent({ scopes: APP_CONFIG.msal.scopes, account: cuenta });
+        this.applyToken(token.accessToken);
+      }
+    } catch (e) {
+      console.error('MSAL init', e);
+    }
+  }
+
   getToken(): string | null {
     const token = localStorage.getItem(this.tokenKey);
     if (token && this.isExpired(token)) {
@@ -51,16 +72,21 @@ export class AuthService {
     this.applyToken(data.token);
   }
 
-  /** Login real con Azure AD (modo msal). */
+  /** Login real con Azure AD (modo msal) usando flujo de redireccion. */
   async loginMsal(): Promise<void> {
     const msal = await this.ensureMsal();
-    const resultado = await msal.loginPopup({ scopes: APP_CONFIG.msal.scopes });
-    msal.setActiveAccount(resultado.account);
-    const tokenResp = await msal.acquireTokenSilent({
-      scopes: APP_CONFIG.msal.scopes,
-      account: resultado.account,
-    });
-    this.applyToken(tokenResp.accessToken);
+    const cuenta = msal.getActiveAccount() ?? msal.getAllAccounts()[0];
+
+    // Si ya hay sesion de Microsoft, solo pide el token (sin redirigir).
+    if (cuenta) {
+      msal.setActiveAccount(cuenta);
+      const token = await msal.acquireTokenSilent({ scopes: APP_CONFIG.msal.scopes, account: cuenta });
+      this.applyToken(token.accessToken);
+      return;
+    }
+
+    // Sin sesion: redirige la ventana completa a Microsoft (vuelve y lo procesa init()).
+    await msal.loginRedirect({ scopes: APP_CONFIG.msal.scopes });
   }
 
   logout(): void {
@@ -76,7 +102,9 @@ export class AuthService {
           clientId: APP_CONFIG.msal.clientId,
           authority: APP_CONFIG.msal.authority,
           redirectUri: APP_CONFIG.msal.redirectUri,
+          navigateToLoginRequestUrl: false,
         },
+        cache: { cacheLocation: 'localStorage' },
       });
       await this.msal.initialize();
     }

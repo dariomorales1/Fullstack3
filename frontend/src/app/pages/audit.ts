@@ -8,51 +8,58 @@ import { AuditService } from '../services/audit.service';
   selector: 'app-audit',
   imports: [FormsModule, DatePipe],
   template: `
-    <h1>Auditoria (timeline de eventos)</h1>
-    @if (error()) { <p class="error">{{ error() }}</p> }
+    <div class="animate-in">
+      <h1>Auditoría</h1>
+      <p class="muted">Timeline de eventos de negocio (vía Kafka).</p>
+      @if (error()) { <p class="error">{{ error() }}</p> }
 
-    <form (ngSubmit)="cargar()" class="row">
-      <input name="cliente" [(ngModel)]="clienteId" placeholder="Cliente (opcional)" />
-      <input name="tipo" [(ngModel)]="eventType" placeholder="Tipo de evento (opcional)" />
-      <button class="primary" type="submit">Filtrar</button>
-    </form>
+      <div class="card" style="margin:1rem 0">
+        <form (ngSubmit)="cargar()" class="row">
+          <input name="cliente" [(ngModel)]="clienteId" placeholder="Cliente (opcional)" style="flex:1;min-width:160px">
+          <input name="tipo" [(ngModel)]="eventType" placeholder="Tipo de evento (opcional)" style="flex:1;min-width:160px">
+          <button class="primary" type="submit">Filtrar</button>
+        </form>
+      </div>
 
-    <table>
-      <thead><tr><th>ID</th><th>Evento</th><th>Pedido</th><th>Cliente</th><th>Ocurrio</th></tr></thead>
-      <tbody>
-        @for (e of eventos(); track e.id) {
-          <tr>
-            <td>{{ e.id }}</td><td>{{ e.eventType }}</td><td>{{ e.pedidoId }}</td>
-            <td>{{ e.clienteId }}</td><td>{{ e.ocurridoEn | date: 'short' }}</td>
-          </tr>
-        } @empty {
-          <tr><td colspan="5" class="muted">Sin eventos</td></tr>
-        }
-      </tbody>
-    </table>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>Evento</th><th>Pedido</th><th>Cliente</th><th>Ocurrió</th></tr></thead>
+          <tbody>
+            @if (cargando()) {
+              <tr><td colspan="5" class="empty"><span class="spinner"></span></td></tr>
+            } @else {
+              @for (e of eventos(); track e.id) {
+                <tr>
+                  <td>{{ e.id }}</td>
+                  <td><span class="badge neutral">{{ e.eventType }}</span></td>
+                  <td>#{{ e.pedidoId }}</td>
+                  <td>{{ e.clienteId }}</td>
+                  <td class="muted">{{ e.ocurridoEn | date:'short' }}</td>
+                </tr>
+              } @empty {
+                <tr><td colspan="5" class="empty">Sin eventos registrados</td></tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
   `,
-  styles: [`
-    table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; margin-top: .5rem; }
-    th, td { padding: .5rem .8rem; text-align: left; border-bottom: 1px solid #eee; }
-    .row { display: flex; gap: .5rem; flex-wrap: wrap; }
-    .error { color: #b00020; } .muted { color: #888; }
-  `],
 })
 export class Audit implements OnInit {
   private svc = inject(AuditService);
   eventos = signal<AuditoriaEvento[]>([]);
   error = signal<string | null>(null);
+  cargando = signal(true);
   clienteId = '';
   eventType = '';
 
-  ngOnInit(): void {
-    this.cargar();
-  }
-
-  cargar(): void {
+  ngOnInit() { this.cargar(); }
+  cargar() {
+    this.cargando.set(true);
     this.svc.eventos({ clienteId: this.clienteId || undefined, eventType: this.eventType || undefined }).subscribe({
-      next: (e) => { this.eventos.set(e); this.error.set(null); },
-      error: (e) => this.error.set(e?.error?.message || e?.message || 'Error'),
+      next: (e) => { this.eventos.set(e); this.error.set(null); this.cargando.set(false); },
+      error: (e) => { this.error.set(e?.error?.message || e?.message || 'Error'); this.cargando.set(false); },
     });
   }
 }
