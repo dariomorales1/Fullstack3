@@ -11,6 +11,14 @@
     <artifactId>ms-admin-kafka</artifactId>
     <name>ms-admin-kafka</name>
     <description>Administrador de Kafka: topicos, configuraciones y consumer groups</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+    </dependencies>
+
     <build>
         <plugins>
             <plugin>

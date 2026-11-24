@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: ms-admin-kafka
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
 
 management:
   endpoints:

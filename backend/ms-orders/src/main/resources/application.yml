@@ -20,6 +20,12 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USER:pedidos360}
     password: ${RABBITMQ_PASS:pedidos360}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
 
 pedidos360:
   catalog:
@@ -27,6 +33,10 @@ pedidos360:
     stock-sync: ${CATALOG_STOCK_SYNC:true}
   rabbit:
     enabled: ${RABBIT_ENABLED:true}
+  kafka:
+    enabled: ${KAFKA_ENABLED:true}
+    partitions: ${KAFKA_PARTITIONS:3}
+    replicas: ${KAFKA_REPLICAS:1}
 
 management:
   endpoints:

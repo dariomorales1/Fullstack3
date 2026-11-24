@@ -11,6 +11,14 @@
     <artifactId>ms-report</artifactId>
     <name>ms-report</name>
     <description>Consumidor Kafka: KPIs y reporteria en tiempo real</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+    </dependencies>
+
     <build>
         <plugins>
             <plugin>

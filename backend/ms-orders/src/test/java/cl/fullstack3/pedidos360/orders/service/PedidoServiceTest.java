@@ -8,6 +8,7 @@ import cl.fullstack3.pedidos360.orders.dto.CrearPedidoRequest;
 import cl.fullstack3.pedidos360.orders.dto.ItemRequest;
 import cl.fullstack3.pedidos360.orders.exception.TransicionInvalidaException;
 import cl.fullstack3.pedidos360.orders.messaging.NotificacionPublisher;
+import cl.fullstack3.pedidos360.orders.messaging.OrderEventPublisher;
 import cl.fullstack3.pedidos360.orders.repository.PedidoRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,8 +38,11 @@ class PedidoServiceTest {
     @Mock
     NotificacionPublisher notificacionPublisher;
 
+    @Mock
+    OrderEventPublisher orderEventPublisher;
+
     private PedidoService servicio(boolean sincronizarStock) {
-        return new PedidoService(repository, catalogClient, notificacionPublisher, sincronizarStock);
+        return new PedidoService(repository, catalogClient, notificacionPublisher, orderEventPublisher, sincronizarStock);
     }
 
     private Pedido pedidoEn(EstadoPedido estado) {

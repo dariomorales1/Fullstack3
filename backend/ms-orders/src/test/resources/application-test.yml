@@ -11,9 +11,14 @@ spring:
 
   rabbitmq:
     dynamic: false
+  kafka:
+    listener:
+      auto-startup: false
 
 pedidos360:
   catalog:
     stock-sync: false
   rabbit:
+    enabled: false
+  kafka:
     enabled: false

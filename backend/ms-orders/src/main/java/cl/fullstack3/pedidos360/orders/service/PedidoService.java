@@ -9,6 +9,7 @@ import cl.fullstack3.pedidos360.orders.dto.ItemRequest;
 import cl.fullstack3.pedidos360.orders.exception.RecursoNoEncontradoException;
 import cl.fullstack3.pedidos360.orders.exception.TransicionInvalidaException;
 import cl.fullstack3.pedidos360.orders.messaging.NotificacionPublisher;
+import cl.fullstack3.pedidos360.orders.messaging.OrderEventPublisher;
 import cl.fullstack3.pedidos360.orders.repository.PedidoRepository;
 import cl.fullstack3.pedidos360.orders.repository.PedidoSpecs;
 import lombok.extern.slf4j.Slf4j;
@@ -28,15 +29,18 @@ public class PedidoService {
     private final PedidoRepository repository;
     private final CatalogClient catalogClient;
     private final NotificacionPublisher notificacionPublisher;
+    private final OrderEventPublisher orderEventPublisher;
     private final boolean sincronizarStock;
 
     public PedidoService(PedidoRepository repository,
                          CatalogClient catalogClient,
                          NotificacionPublisher notificacionPublisher,
+                         OrderEventPublisher orderEventPublisher,
                          @Value("${pedidos360.catalog.stock-sync:true}") boolean sincronizarStock) {
         this.repository = repository;
         this.catalogClient = catalogClient;
         this.notificacionPublisher = notificacionPublisher;
+        this.orderEventPublisher = orderEventPublisher;
         this.sincronizarStock = sincronizarStock;
     }
 
@@ -75,6 +79,7 @@ public class PedidoService {
         pedido.setTotal(total);
         Pedido guardado = repository.save(pedido);
         notificacionPublisher.notificarPedidoCreado(guardado);
+        orderEventPublisher.publicar(guardado, eventTypeDe(guardado.getEstado()));
         return guardado;
     }
 
@@ -98,7 +103,20 @@ public class PedidoService {
         }
         Pedido guardado = repository.save(pedido);
         notificacionPublisher.notificarCambioEstado(guardado);
+        orderEventPublisher.publicar(guardado, eventTypeDe(guardado.getEstado()));
         return guardado;
+    }
+
+    /** Traduce el estado del pedido al nombre del evento de negocio. */
+    private String eventTypeDe(EstadoPedido estado) {
+        return switch (estado) {
+            case CREADO -> "OrderCreated";
+            case ACEPTADO -> "OrderAccepted";
+            case EN_PREPARACION -> "OrderPreparing";
+            case DESPACHADO -> "OrderDispatched";
+            case ENTREGADO -> "OrderDelivered";
+            case CANCELADO -> "OrderCancelled";
+        };
     }
 
     /** Al aceptar el pedido se descuenta el stock (best-effort si el catalogo no responde). */
