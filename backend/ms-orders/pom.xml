@@ -10,7 +10,25 @@
     </parent>
     <artifactId>ms-orders</artifactId>
     <name>ms-orders</name>
-    <description>Gestion de pedidos y maquina de estados; produce a Kafka y RabbitMQ</description>
+    <description>Gestion de pedidos y maquina de estados</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
     <build>
         <plugins>
             <plugin>
