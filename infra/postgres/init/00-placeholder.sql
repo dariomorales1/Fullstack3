@@ -1,0 +1,2 @@
+-- Scripts de inicializacion de la BD Pedidos360.
+-- Se completan en Fase 2 (esquemas orders/catalog/audit).

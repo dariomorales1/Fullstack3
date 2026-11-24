@@ -1,0 +1,114 @@
+# Pedidos360 — Infraestructura base (desarrollo local)
+# Fase 0/1: PostgreSQL + RabbitMQ (management) + Kafka (Zookeeper + 1 broker) + Kafka-UI.
+# La topologia completa (clúster RabbitMQ 2 nodos, 3 Zookeeper + 3 brokers) se define
+# para la dimensión Defensa en infra/docker-compose.cluster.yml (fase posterior).
+#
+# Uso:
+#   docker compose -f infra/docker-compose.yml up -d
+#   RabbitMQ UI : http://localhost:15672  (user: pedidos360 / pass: pedidos360)
+#   Kafka-UI    : http://localhost:8090
+#   Postgres    : localhost:5432          (user: pedidos360 / pass: pedidos360)
+
+name: pedidos360-infra
+
+services:
+
+  # ---------- Base de datos ----------
+  postgres:
+    image: postgres:16
+    container_name: p360-postgres
+    environment:
+      POSTGRES_USER: pedidos360
+      POSTGRES_PASSWORD: pedidos360
+      POSTGRES_DB: pedidos360
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pedidos360 -d pedidos360"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [p360-net]
+
+  # ---------- RabbitMQ (colas / commands) ----------
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: p360-rabbitmq
+    hostname: p360-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: pedidos360
+      RABBITMQ_DEFAULT_PASS: pedidos360
+    ports:
+      - "5672:5672"     # AMQP
+      - "15672:15672"   # Management UI
+    volumes:
+      - rabbitdata:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks: [p360-net]
+
+  # ---------- Kafka (events / streaming) ----------
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: p360-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks: [p360-net]
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: p360-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"     # listener externo (host)
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # Listeners: INTERNAL (red docker) + EXTERNAL (host localhost)
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # Con 1 broker en dev, el factor de replicación de los topicos internos debe ser 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks: [p360-net]
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: p360-kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: pedidos360
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      DYNAMIC_CONFIG_ENABLED: "true"
+    networks: [p360-net]
+
+volumes:
+  pgdata:
+  rabbitdata:
+
+networks:
+  p360-net:
+    driver: bridge
