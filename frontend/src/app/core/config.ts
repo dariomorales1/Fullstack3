@@ -6,7 +6,8 @@ export type AuthMode = 'local' | 'msal';
  * - authMode 'msal': login real con Azure AD (completar msal.* en Fase 7).
  */
 export const APP_CONFIG = {
-  authMode: 'local' as AuthMode,
+  // 'local' = login de desarrollo (token del BFF). 'msal' = login real con Azure AD.
+  authMode: 'msal' as AuthMode,
 
   api: {
     bff: 'http://localhost:8085',
@@ -16,11 +17,11 @@ export const APP_CONFIG = {
     audit: 'http://localhost:8086',
   },
 
-  // Placeholders para Azure AD (Entra External ID) — se completan en la Fase 7.
+  // Azure AD (tenant felipeulloalive) — Fase 7.
   msal: {
-    clientId: 'TODO-AZURE-CLIENT-ID',
-    authority: 'https://login.microsoftonline.com/TODO-TENANT-ID',
+    clientId: 'cc157a73-9589-4ae6-b3df-08054f33a643',
+    authority: 'https://login.microsoftonline.com/c1d011a7-dcb8-4f4f-b4e4-2ca67388b40f',
     redirectUri: 'http://localhost:4200',
-    scopes: ['api://TODO-API-CLIENT-ID/.default'],
+    scopes: ['api://cc157a73-9589-4ae6-b3df-08054f33a643/access_as_user'],
   },
 };

@@ -11,7 +11,12 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2TokenValidator;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtDecoders;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
@@ -68,13 +73,29 @@ public class SecurityAutoConfiguration {
         return converter;
     }
 
-    /** Decodificador para modo local (HS256). En modo oidc lo provee Spring Boot via issuer-uri. */
+    /** Decodificador para modo local (HS256), para desarrollo y pruebas. */
     @Bean
     @ConditionalOnMissingBean(JwtDecoder.class)
     @ConditionalOnProperty(name = "pedidos360.security.mode", havingValue = "local", matchIfMissing = true)
-    public JwtDecoder jwtDecoder(
+    public JwtDecoder localJwtDecoder(
             @Value("${pedidos360.security.secret:cambia-este-secreto-de-desarrollo-pedidos360-hs256-32bytes}") String secret) {
         SecretKeySpec clave = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
         return NimbusJwtDecoder.withSecretKey(clave).build();
+    }
+
+    /** Decodificador para modo oidc (Azure AD / Entra External ID): valida issuer + firma + audiencia. */
+    @Bean
+    @ConditionalOnMissingBean(JwtDecoder.class)
+    @ConditionalOnProperty(name = "pedidos360.security.mode", havingValue = "oidc")
+    public JwtDecoder oidcJwtDecoder(
+            @Value("${pedidos360.security.issuer-uri}") String issuerUri,
+            @Value("${pedidos360.security.audience:}") String audience) {
+        NimbusJwtDecoder decoder = JwtDecoders.fromIssuerLocation(issuerUri);
+        OAuth2TokenValidator<Jwt> conIssuer = JwtValidators.createDefaultWithIssuer(issuerUri);
+        OAuth2TokenValidator<Jwt> validador = audience.isBlank()
+                ? conIssuer
+                : new DelegatingOAuth2TokenValidator<>(conIssuer, new AudienceValidator(audience));
+        decoder.setJwtValidator(validador);
+        return decoder;
     }
 }
