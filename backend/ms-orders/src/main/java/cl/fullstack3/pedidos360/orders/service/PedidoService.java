@@ -8,6 +8,7 @@ import cl.fullstack3.pedidos360.orders.dto.CrearPedidoRequest;
 import cl.fullstack3.pedidos360.orders.dto.ItemRequest;
 import cl.fullstack3.pedidos360.orders.exception.RecursoNoEncontradoException;
 import cl.fullstack3.pedidos360.orders.exception.TransicionInvalidaException;
+import cl.fullstack3.pedidos360.orders.messaging.NotificacionPublisher;
 import cl.fullstack3.pedidos360.orders.repository.PedidoRepository;
 import cl.fullstack3.pedidos360.orders.repository.PedidoSpecs;
 import lombok.extern.slf4j.Slf4j;
@@ -26,13 +27,16 @@ public class PedidoService {
 
     private final PedidoRepository repository;
     private final CatalogClient catalogClient;
+    private final NotificacionPublisher notificacionPublisher;
     private final boolean sincronizarStock;
 
     public PedidoService(PedidoRepository repository,
                          CatalogClient catalogClient,
+                         NotificacionPublisher notificacionPublisher,
                          @Value("${pedidos360.catalog.stock-sync:true}") boolean sincronizarStock) {
         this.repository = repository;
         this.catalogClient = catalogClient;
+        this.notificacionPublisher = notificacionPublisher;
         this.sincronizarStock = sincronizarStock;
     }
 
@@ -69,7 +73,9 @@ public class PedidoService {
             total = total.add(subtotal);
         }
         pedido.setTotal(total);
-        return repository.save(pedido);
+        Pedido guardado = repository.save(pedido);
+        notificacionPublisher.notificarPedidoCreado(guardado);
+        return guardado;
     }
 
     @Transactional
@@ -90,7 +96,9 @@ public class PedidoService {
         if (nuevoEstado == EstadoPedido.ENTREGADO) {
             pedido.setEntregadoEn(Instant.now());
         }
-        return repository.save(pedido);
+        Pedido guardado = repository.save(pedido);
+        notificacionPublisher.notificarCambioEstado(guardado);
+        return guardado;
     }
 
     /** Al aceptar el pedido se descuenta el stock (best-effort si el catalogo no responde). */

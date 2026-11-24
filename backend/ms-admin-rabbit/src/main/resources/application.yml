@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: ms-admin-rabbit
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:pedidos360}
+    password: ${RABBITMQ_PASS:pedidos360}
 
 management:
   endpoints:

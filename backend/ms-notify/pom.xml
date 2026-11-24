@@ -11,6 +11,14 @@
     <artifactId>ms-notify</artifactId>
     <name>ms-notify</name>
     <description>Consumidor RabbitMQ: notificaciones email/push/cocina/factura</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+    </dependencies>
+
     <build>
         <plugins>
             <plugin>

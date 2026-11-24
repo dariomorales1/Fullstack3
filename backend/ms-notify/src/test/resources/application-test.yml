@@ -1,0 +1,7 @@
+spring:
+  rabbitmq:
+    # En tests no hay broker: no declarar topologia ni arrancar listeners
+    dynamic: false
+    listener:
+      simple:
+        auto-startup: false

@@ -4,6 +4,19 @@ server:
 spring:
   application:
     name: ms-notify
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:pedidos360}
+    password: ${RABBITMQ_PASS:pedidos360}
+    listener:
+      simple:
+        # No reencolar un mensaje fallido: tras agotar reintentos pasa a la DLQ
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1000
 
 management:
   endpoints:

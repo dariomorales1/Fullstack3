@@ -9,6 +9,11 @@ spring:
       ddl-auto: create-drop
     database-platform: org.hibernate.dialect.H2Dialect
 
+  rabbitmq:
+    dynamic: false
+
 pedidos360:
   catalog:
     stock-sync: false
+  rabbit:
+    enabled: false

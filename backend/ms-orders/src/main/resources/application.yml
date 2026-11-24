@@ -15,11 +15,18 @@ spring:
     properties:
       hibernate:
         format_sql: true
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:pedidos360}
+    password: ${RABBITMQ_PASS:pedidos360}
 
 pedidos360:
   catalog:
     base-url: ${CATALOG_BASE_URL:http://localhost:8082}
     stock-sync: ${CATALOG_STOCK_SYNC:true}
+  rabbit:
+    enabled: ${RABBIT_ENABLED:true}
 
 management:
   endpoints:
