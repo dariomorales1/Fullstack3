@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.amqp.core.*;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -15,6 +16,7 @@ import java.util.Properties;
 
 @RestController
 @RequestMapping("/api/adminrabbit")
+@PreAuthorize("hasRole('ADMIN')")
 @Tag(name = "Admin RabbitMQ", description = "Creacion y eliminacion de colas, exchanges y bindings")
 public class RabbitAdminController {
 

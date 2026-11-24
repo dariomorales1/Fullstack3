@@ -3,6 +3,7 @@ package cl.fullstack3.pedidos360.audit.web;
 import cl.fullstack3.pedidos360.audit.service.AuditoriaService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -13,6 +14,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/audit")
+@PreAuthorize("hasRole('ADMIN')")
 @Tag(name = "Auditoria", description = "Timeline de eventos de negocio (solo lectura)")
 public class AuditController {
 

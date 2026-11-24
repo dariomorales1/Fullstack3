@@ -20,6 +20,7 @@
     <packaging>pom</packaging>
 
     <modules>
+        <module>commons-security</module>
         <module>ms-bff</module>
         <module>ms-orders</module>
         <module>ms-catalog</module>

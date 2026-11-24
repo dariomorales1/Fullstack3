@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -29,6 +30,7 @@ public class PedidoController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('CLIENTE','OPERADOR')")
     @Operation(summary = "Crear un pedido (queda en estado CREADO)")
     public PedidoResponse crear(@Valid @RequestBody CrearPedidoRequest req) {
         return PedidoResponse.desde(service.crear(req));
@@ -53,6 +55,7 @@ public class PedidoController {
     }
 
     @PutMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('OPERADOR','ADMIN')")
     @Operation(summary = "Cambiar el estado de un pedido (valida transiciones)")
     public PedidoResponse cambiarEstado(@PathVariable Long id, @Valid @RequestBody CambiarEstadoRequest req) {
         return PedidoResponse.desde(service.cambiarEstado(id, parsearEstado(req.status())));

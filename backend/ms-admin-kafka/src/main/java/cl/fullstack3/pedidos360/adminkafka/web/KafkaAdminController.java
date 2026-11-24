@@ -8,12 +8,14 @@ import jakarta.validation.Valid;
 import org.apache.kafka.clients.admin.*;
 import org.apache.kafka.common.config.ConfigResource;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 
 @RestController
 @RequestMapping("/api/adminkafka")
+@PreAuthorize("hasRole('ADMIN')")
 @Tag(name = "Admin Kafka", description = "Administracion de topicos, configuraciones y consumer groups")
 public class KafkaAdminController {
 
