@@ -31,7 +31,7 @@ public class Pedido {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal total = BigDecimal.ZERO;
 
-    @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<PedidoItem> items = new ArrayList<>();
 
     @Column(name = "creado_en", nullable = false, updatable = false)
