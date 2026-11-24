@@ -1,0 +1,178 @@
+# Pedidos360 — Topologia COMPLETA (dimension Defensa)
+# Clúster RabbitMQ de 2 nodos + Kafka con 3 Zookeeper y 3 brokers + Kafka-UI + Postgres.
+#
+# Usa los MISMOS puertos principales que el compose de desarrollo, por lo que el
+# backend se conecta sin cambios. Levanta ESTE o el de desarrollo, no ambos a la vez.
+#
+# Uso:
+#   docker compose -f infra/docker-compose.yml down          # bajar el de 1 nodo
+#   docker compose -f infra/docker-compose.cluster.yml up -d  # levantar el cluster
+#
+#   RabbitMQ UI nodo 1 : http://localhost:15672   nodo 2: http://localhost:15673
+#   Kafka-UI           : http://localhost:8090   (muestra los 3 brokers)
+#   Brokers host       : localhost:9092 / 9093 / 9094
+
+name: pedidos360-cluster
+
+# ---- Bloques reutilizables ----
+x-kafka-common: &kafka-common
+  image: confluentinc/cp-kafka:7.6.1
+  depends_on: [zk1, zk2, zk3]
+  environment: &kafka-env
+    KAFKA_ZOOKEEPER_CONNECT: zk1:2181,zk2:2181,zk3:2181
+    KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+    KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+    # Con 3 brokers, los topicos internos y los de negocio usan factor 3.
+    KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+    KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+    KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+    KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+    KAFKA_MIN_INSYNC_REPLICAS: 2
+    KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+  networks: [p360-net]
+
+x-zk-common: &zk-common
+  image: confluentinc/cp-zookeeper:7.6.1
+  environment: &zk-env
+    ZOOKEEPER_CLIENT_PORT: 2181
+    ZOOKEEPER_TICK_TIME: 2000
+    ZOOKEEPER_INIT_LIMIT: 5
+    ZOOKEEPER_SYNC_LIMIT: 2
+    ZOOKEEPER_SERVERS: zk1:2888:3888;zk2:2888:3888;zk3:2888:3888
+  networks: [p360-net]
+
+services:
+
+  # ---------- Base de datos ----------
+  postgres:
+    image: postgres:16
+    container_name: p360c-postgres
+    environment:
+      POSTGRES_USER: pedidos360
+      POSTGRES_PASSWORD: pedidos360
+      POSTGRES_DB: pedidos360
+    ports:
+      - "5432:5432"
+    volumes:
+      - clpgdata:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pedidos360 -d pedidos360"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [p360-net]
+
+  # ---------- Clúster RabbitMQ (2 nodos) ----------
+  rabbit1:
+    image: rabbitmq:3.13-management
+    container_name: p360c-rabbit1
+    hostname: rabbit1
+    environment:
+      RABBITMQ_ERLANG_COOKIE: p360-cluster-cookie
+    ports:
+      - "5672:5672"      # AMQP (el backend se conecta aqui)
+      - "15672:15672"    # Management UI nodo 1
+    volumes:
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - clrabbit1:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    networks: [p360-net]
+
+  rabbit2:
+    image: rabbitmq:3.13-management
+    container_name: p360c-rabbit2
+    hostname: rabbit2
+    depends_on: [rabbit1]
+    environment:
+      RABBITMQ_ERLANG_COOKIE: p360-cluster-cookie
+    ports:
+      - "5673:5672"      # AMQP nodo 2
+      - "15673:15672"    # Management UI nodo 2
+    volumes:
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - clrabbit2:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    networks: [p360-net]
+
+  # ---------- Ensemble Zookeeper (3 nodos) ----------
+  zk1:
+    <<: *zk-common
+    container_name: p360c-zk1
+    environment:
+      <<: *zk-env
+      ZOOKEEPER_SERVER_ID: 1
+  zk2:
+    <<: *zk-common
+    container_name: p360c-zk2
+    environment:
+      <<: *zk-env
+      ZOOKEEPER_SERVER_ID: 2
+  zk3:
+    <<: *zk-common
+    container_name: p360c-zk3
+    environment:
+      <<: *zk-env
+      ZOOKEEPER_SERVER_ID: 3
+
+  # ---------- Kafka (3 brokers) ----------
+  kafka1:
+    <<: *kafka-common
+    container_name: p360c-kafka1
+    ports:
+      - "9092:9092"
+    environment:
+      <<: *kafka-env
+      KAFKA_BROKER_ID: 1
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka1:29092,EXTERNAL://localhost:9092
+  kafka2:
+    <<: *kafka-common
+    container_name: p360c-kafka2
+    ports:
+      - "9093:9093"
+    environment:
+      <<: *kafka-env
+      KAFKA_BROKER_ID: 2
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka2:29092,EXTERNAL://localhost:9093
+  kafka3:
+    <<: *kafka-common
+    container_name: p360c-kafka3
+    ports:
+      - "9094:9094"
+    environment:
+      <<: *kafka-env
+      KAFKA_BROKER_ID: 3
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka3:29092,EXTERNAL://localhost:9094
+
+  # ---------- Kafka-UI (administracion visual) ----------
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: p360c-kafka-ui
+    depends_on: [kafka1, kafka2, kafka3]
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: pedidos360-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka1:29092,kafka2:29092,kafka3:29092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    networks: [p360-net]
+
+volumes:
+  clpgdata:
+  clrabbit1:
+  clrabbit2:
+
+networks:
+  p360-net:
+    driver: bridge
