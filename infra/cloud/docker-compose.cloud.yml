@@ -1,0 +1,164 @@
+# Pedidos360 — Despliegue en la nube (VM Azure, dimension Defensa)
+# Corre en la VM: cluster Kafka 3+3, cluster RabbitMQ 2 nodos y los 7 microservicios.
+# La base de datos es Azure Database for PostgreSQL (gestionada); la identidad es Azure AD.
+# Variables sensibles en el archivo .env (PGHOST, PGPASS).
+
+name: pedidos360-cloud
+
+x-app-env: &app-env
+  PEDIDOS360_SECURITY_MODE: oidc
+  PEDIDOS360_SECURITY_ISSUER_URI: https://login.microsoftonline.com/c1d011a7-dcb8-4f4f-b4e4-2ca67388b40f/v2.0
+  PEDIDOS360_SECURITY_AUDIENCE: cc157a73-9589-4ae6-b3df-08054f33a643
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka1:29092,kafka2:29092,kafka3:29092
+  SPRING_RABBITMQ_HOST: rabbit1
+  SPRING_RABBITMQ_USERNAME: pedidos360
+  SPRING_RABBITMQ_PASSWORD: pedidos360
+  PEDIDOS360_KAFKA_REPLICAS: "3"
+  JAVA_TOOL_OPTIONS: "-Xmx300m"
+
+x-db-env: &db-env
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://${PGHOST}:5432/pedidos360?sslmode=require"
+  SPRING_DATASOURCE_USERNAME: pedidos360
+  SPRING_DATASOURCE_PASSWORD: "${PGPASS}"
+
+x-zk-common: &zk-common
+  image: confluentinc/cp-zookeeper:7.6.1
+  environment: &zk-env
+    ZOOKEEPER_CLIENT_PORT: 2181
+    ZOOKEEPER_TICK_TIME: 2000
+    ZOOKEEPER_INIT_LIMIT: 5
+    ZOOKEEPER_SYNC_LIMIT: 2
+    ZOOKEEPER_SERVERS: zk1:2888:3888;zk2:2888:3888;zk3:2888:3888
+  networks: [p360]
+
+x-kafka-common: &kafka-common
+  image: confluentinc/cp-kafka:7.6.1
+  depends_on: [zk1, zk2, zk3]
+  environment: &kafka-env
+    KAFKA_ZOOKEEPER_CONNECT: zk1:2181,zk2:2181,zk3:2181
+    KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+    KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+    KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+    KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+    KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+    KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+    KAFKA_MIN_INSYNC_REPLICAS: 2
+    KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+  networks: [p360]
+
+services:
+  # ---- Zookeeper (3) ----
+  zk1: { <<: *zk-common, container_name: c-zk1, environment: { <<: *zk-env, ZOOKEEPER_SERVER_ID: 1 } }
+  zk2: { <<: *zk-common, container_name: c-zk2, environment: { <<: *zk-env, ZOOKEEPER_SERVER_ID: 2 } }
+  zk3: { <<: *zk-common, container_name: c-zk3, environment: { <<: *zk-env, ZOOKEEPER_SERVER_ID: 3 } }
+
+  # ---- Kafka (3 brokers) ----
+  kafka1:
+    <<: *kafka-common
+    container_name: c-kafka1
+    environment:
+      <<: *kafka-env
+      KAFKA_BROKER_ID: 1
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka1:29092,EXTERNAL://localhost:9092
+  kafka2:
+    <<: *kafka-common
+    container_name: c-kafka2
+    environment:
+      <<: *kafka-env
+      KAFKA_BROKER_ID: 2
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka2:29092,EXTERNAL://localhost:9093
+  kafka3:
+    <<: *kafka-common
+    container_name: c-kafka3
+    environment:
+      <<: *kafka-env
+      KAFKA_BROKER_ID: 3
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka3:29092,EXTERNAL://localhost:9094
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: c-kafka-ui
+    depends_on: [kafka1, kafka2, kafka3]
+    ports: ["8090:8080"]
+    environment:
+      KAFKA_CLUSTERS_0_NAME: pedidos360-cloud
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka1:29092,kafka2:29092,kafka3:29092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    networks: [p360]
+
+  # ---- RabbitMQ (cluster 2 nodos) ----
+  rabbit1:
+    image: rabbitmq:3.13-management
+    container_name: c-rabbit1
+    hostname: rabbit1
+    environment: { RABBITMQ_ERLANG_COOKIE: p360-cluster-cookie }
+    ports: ["5672:5672", "15672:15672"]
+    volumes: ["./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro"]
+    networks: [p360]
+  rabbit2:
+    image: rabbitmq:3.13-management
+    container_name: c-rabbit2
+    hostname: rabbit2
+    depends_on: [rabbit1]
+    environment: { RABBITMQ_ERLANG_COOKIE: p360-cluster-cookie }
+    ports: ["15673:15672"]
+    volumes: ["./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro"]
+    networks: [p360]
+
+  # ---- Microservicios ----
+  ms-orders:
+    build: ./backend/ms-orders
+    container_name: c-orders
+    depends_on: [kafka1, rabbit1]
+    environment: { <<: [*app-env, *db-env] }
+    ports: ["8081:8081"]
+    networks: [p360]
+  ms-catalog:
+    build: ./backend/ms-catalog
+    container_name: c-catalog
+    depends_on: [kafka1, rabbit1]
+    environment: { <<: [*app-env, *db-env] }
+    ports: ["8082:8082"]
+    networks: [p360]
+  ms-notify:
+    build: ./backend/ms-notify
+    container_name: c-notify
+    depends_on: [rabbit1]
+    environment: { <<: *app-env }
+    ports: ["8083:8083"]
+    networks: [p360]
+  ms-report:
+    build: ./backend/ms-report
+    container_name: c-report
+    depends_on: [kafka1]
+    environment: { <<: [*app-env, *db-env] }
+    ports: ["8084:8084"]
+    networks: [p360]
+  ms-audit:
+    build: ./backend/ms-audit
+    container_name: c-audit
+    depends_on: [kafka1]
+    environment: { <<: [*app-env, *db-env] }
+    ports: ["8086:8086"]
+    networks: [p360]
+  ms-admin-rabbit:
+    build: ./backend/ms-admin-rabbit
+    container_name: c-admin-rabbit
+    depends_on: [rabbit1]
+    environment: { <<: *app-env }
+    ports: ["8087:8087"]
+    networks: [p360]
+  ms-admin-kafka:
+    build: ./backend/ms-admin-kafka
+    container_name: c-admin-kafka
+    depends_on: [kafka1]
+    environment: { <<: *app-env }
+    ports: ["8088:8088"]
+    networks: [p360]
+
+networks:
+  p360:
+    driver: bridge
