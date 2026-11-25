@@ -9,12 +9,13 @@ export const APP_CONFIG = {
   // 'local' = login de desarrollo (token del BFF). 'msal' = login real con Azure AD.
   authMode: 'msal' as AuthMode,
 
+  // Todas las llamadas pasan por el API Manager en la nube (valida el JWT y enruta al backend).
   api: {
     bff: 'http://localhost:8085',
-    orders: 'http://localhost:8081',
-    catalog: 'http://localhost:8082',
-    report: 'http://localhost:8084',
-    audit: 'http://localhost:8086',
+    orders: 'https://apim-pedidos360-duoc.azure-api.net',
+    catalog: 'https://apim-pedidos360-duoc.azure-api.net',
+    report: 'https://apim-pedidos360-duoc.azure-api.net',
+    audit: 'https://apim-pedidos360-duoc.azure-api.net',
   },
 
   // Azure AD (tenant felipeulloalive) — Fase 7.

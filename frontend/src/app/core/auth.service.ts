@@ -102,7 +102,6 @@ export class AuthService {
           clientId: APP_CONFIG.msal.clientId,
           authority: APP_CONFIG.msal.authority,
           redirectUri: APP_CONFIG.msal.redirectUri,
-          navigateToLoginRequestUrl: false,
         },
         cache: { cacheLocation: 'localStorage' },
       });
